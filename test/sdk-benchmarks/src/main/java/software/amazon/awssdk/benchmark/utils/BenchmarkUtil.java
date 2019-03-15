@@ -19,6 +19,9 @@ import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import org.openjdk.jmh.infra.Blackhole;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.protocolec2.model.AllTypesRequest;
 
@@ -28,8 +31,11 @@ import software.amazon.awssdk.services.protocolec2.model.AllTypesRequest;
 @SuppressWarnings("unchecked")
 public final class BenchmarkUtil {
 
-    public static final int PORT_NUMBER = 8089;
-    public static final URI LOCAL_URI = URI.create(String.format("http://localhost:%s", PORT_NUMBER));
+    public static final int HTTP_PORT_NUMBER = 8089;
+    public static final int HTTPS_PORT_NUMBER = 9999;
+    public static final URI LOCAL_HTTP_URI = URI.create(String.format("http://localhost:%s", HTTP_PORT_NUMBER));
+    public static final URI LOCAL_HTTPS_URI = URI.create(String.format("https://localhost:%s", HTTPS_PORT_NUMBER));
+
     public static final Instant TIMESTAMP_MEMBER = LocalDateTime.now().toInstant(ZoneOffset.UTC);
 
     public static final String ERROR_JSON_BODY = "{}";
@@ -169,6 +175,20 @@ public final class BenchmarkUtil {
                        .blobArg(SdkBytes.fromUtf8String("hello "
                                                         + "world"))
                        .build();
+
+    public static void waitForComplete(Blackhole blackhole,
+                                       CompletableFuture<?> completableFuture,
+                                       CountDownLatch countDownLatch) {
+        completableFuture.whenComplete((r, t) -> {
+            if (r != null) {
+                blackhole.consume(r);
+            } else {
+                blackhole.consume(t);
+            }
+            countDownLatch.countDown();
+        });
+    }
+
 
     private BenchmarkUtil() {
     }

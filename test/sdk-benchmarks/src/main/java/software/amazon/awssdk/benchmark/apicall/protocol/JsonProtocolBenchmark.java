@@ -18,7 +18,7 @@ package software.amazon.awssdk.benchmark.apicall.protocol;
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.ERROR_JSON_BODY;
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.JSON_ALL_TYPES_REQUEST;
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.JSON_BODY;
-import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.LOCAL_URI;
+import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.LOCAL_HTTP_URI;
 
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -54,7 +54,7 @@ public class JsonProtocolBenchmark implements SdkProtocolBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         client = ProtocolRestJsonClient.builder()
-                                       .endpointOverride(LOCAL_URI)
+                                       .endpointOverride(LOCAL_HTTP_URI)
                                        .httpClient(new MockHttpClient(JSON_BODY, ERROR_JSON_BODY))
                                        .build();
     }

@@ -19,5 +19,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 public interface SdkApiCallBenchmark {
 
-    void apiCall(Blackhole blackhole);
+    void sequentialApiCall(Blackhole blackhole);
+
+    void concurrentApiCall(Blackhole blackhole);
 }

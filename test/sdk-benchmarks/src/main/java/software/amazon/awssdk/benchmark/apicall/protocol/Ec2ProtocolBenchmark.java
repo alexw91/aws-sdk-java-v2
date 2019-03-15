@@ -17,7 +17,7 @@ package software.amazon.awssdk.benchmark.apicall.protocol;
 
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.EC2_ALL_TYPES_REQUEST;
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.ERROR_XML_BODY;
-import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.LOCAL_URI;
+import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.LOCAL_HTTP_URI;
 import static software.amazon.awssdk.benchmark.utils.BenchmarkUtil.XML_BODY;
 
 import java.util.concurrent.TimeUnit;
@@ -54,7 +54,7 @@ public class Ec2ProtocolBenchmark implements SdkProtocolBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         client = ProtocolEc2Client.builder()
-                                  .endpointOverride(LOCAL_URI)
+                                  .endpointOverride(LOCAL_HTTP_URI)
                                   .httpClient(new MockHttpClient(XML_BODY, ERROR_XML_BODY))
                                   .build();
     }

@@ -24,14 +24,24 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.ChainedOptionsBuilder;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
+import software.amazon.awssdk.benchmark.apicall.async.NettyHttpClientH2Benchmark;
+import software.amazon.awssdk.benchmark.apicall.async.NettyHttpClientH2JdkBenchmark;
+import software.amazon.awssdk.benchmark.apicall.async.NettyHttpClientOpenSslBenchmark;
 import software.amazon.awssdk.utils.Logger;
 
 public class BenchmarkRunner {
 
     private static final List<String> BENCHMARKS_TO_RUN =
-        Arrays.asList("Ec2ProtocolBenchmark", "JsonProtocolBenchmark", "QueryProtocolBenchmark", "XmlProtocolBenchmark",
-                      "V2OptimizedClientCreationBenchmark", "V1ClientCreationBenchmark", "V2DefaultClientCreationBenchmark",
-                      "ApacheHttpClientBenchmark", "UrlConnectionHttpClientClientBenchmark");
+        Arrays.asList(
+            //"Ec2ProtocolBenchmark", "JsonProtocolBenchmark", "QueryProtocolBenchmark", "XmlProtocolBenchmark",
+            //"V2OptimizedClientCreationBenchmark", "V1ClientCreationBenchmark", "V2DefaultClientCreationBenchmark",
+            //"ApacheHttpClientBenchmark",
+            //"UrlConnectionHttpClientClientBenchmark",
+            //"NettyHttpClientBenchmark", "NettyHttpClientJdkSslBenchmark", "NettyHttpClientOpenSslBenchmark",
+            NettyHttpClientH2Benchmark.class.getSimpleName() + ".concurrentApiCall",
+            NettyHttpClientH2JdkBenchmark.class.getSimpleName() + ".concurrentApiCall",
+            NettyHttpClientOpenSslBenchmark.class.getSimpleName() + ".concurrentApiCall"
+            );
     private static final Logger log = Logger.loggerFor(BenchmarkRunner.class);
     private final List<String> benchmarksToRun;
 

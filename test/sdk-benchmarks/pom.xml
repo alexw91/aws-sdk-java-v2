@@ -131,6 +131,16 @@
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
+            <artifactId>netty-nio-client</artifactId>
+            <version>${awsjavasdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <version>2.0.20.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
             <artifactId>regions</artifactId>
             <version>${awsjavasdk.version}</version>
         </dependency>
@@ -153,14 +163,32 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.25</version>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-servlet</artifactId>
-            <version>9.2.22.v20170606</version>
+            <version>9.4.14.v20181114</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty.http2</groupId>
+            <artifactId>http2-server</artifactId>
+            <version>9.4.15.v20190215</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-alpn-java-server</artifactId>
+            <version>9.4.15.v20190215</version>
         </dependency>
 
+        <!--<dependency>-->
+            <!--<groupId>org.eclipse.jetty.alpn</groupId>-->
+            <!--<artifactId>alpn-api</artifactId>-->
+            <!--<version>9.4.15.v20190215</version>-->
+        <!--</dependency>-->
     </dependencies>
 
     <dependencyManagement>
