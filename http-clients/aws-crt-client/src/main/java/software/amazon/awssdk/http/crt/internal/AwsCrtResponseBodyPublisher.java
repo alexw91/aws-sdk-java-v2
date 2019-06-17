@@ -29,6 +29,7 @@ import org.reactivestreams.Subscriber;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.utils.Logger;
+import software.amazon.awssdk.utils.Validate;
 
 /**
  * Adapts an Response Body stream from CrtHttpStreamHandler to a Publisher<ByteBuffer>
@@ -55,12 +56,16 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
      *                   never exceed this value.
      */
     public AwsCrtResponseBodyPublisher(HttpStream stream, int windowSize) {
+        Validate.notNull(stream, "Stream must not be null");
+        Validate.isPositive(windowSize, "windowSize must be > 0");
         this.stream = stream;
         this.windowSize = windowSize;
     }
 
     @Override
     public void subscribe(Subscriber<? super ByteBuffer> application) {
+        Validate.notNull(application, "Subscriber must not be null");
+
         boolean wasFirstSubscriber = subscriber.compareAndSet(null, application);
 
         if (!wasFirstSubscriber) {
@@ -77,6 +82,8 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
      * @param buffer
      */
     protected void queueBuffer(ByteBuffer buffer) {
+        Validate.notNull(buffer, "ByteBuffer must not be null");
+
         if (isCancelled.get()) {
             // Immediately open HttpStream's IO window so it doesn't see any IO Back-pressure.
             // AFAIK there's no way to abort an in-progress HttpStream, only free it's memory by calling close()
@@ -97,16 +104,16 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         outstandingRequests.addAndGet(n);
     }
 
-    protected void error(Throwable t) {
+    protected void setError(Throwable t) {
         log.error(() -> "Error processing Response Body", t);
         error.compareAndSet(null, t);
     }
 
-    protected void cancel() {
+    protected void setCancelled() {
         isCancelled.set(true);
     }
 
-    protected void complete() {
+    protected void setComplete() {
         isComplete.set(true);
     }
 
@@ -116,13 +123,14 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
      * calling queuedBuffers.poll(), but then have the 2nd thread call subscriber.onNext(buffer) first, resulting in the
      * subscriber seeing out-of-order data. To avoid this race condition, this method must be synchronized.
      */
-    protected synchronized void notifySubscribers() {
+    protected synchronized void publishToSubscribers() {
         if (subscriber.get() == null) {
             return;
         }
 
         if (error.get() != null) {
             subscriber.get().onError(error.get());
+            return;
         }
 
         int totalAmountTransferred = 0;

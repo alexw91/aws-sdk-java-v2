@@ -52,14 +52,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     private final int windowSize;
 
     public AwsCrtAsyncHttpClient(DefaultBuilder builder, AttributeMap serviceDefaultsMap) {
-        Validate.isTrue(builder.bootstrap != null, "The EventLoop must not be null");
-        Validate.isTrue(builder.socketOptions != null, "The EventLoop must not be null");
-        Validate.isTrue(builder.tlsContext != null, "The EventLoop must not be null");
-
-        bootstrap = builder.bootstrap;
-        socketOptions = builder.socketOptions;
-        tlsContext = builder.tlsContext;
-        windowSize = builder.windowSize;
+        this(builder.bootstrap, builder.socketOptions, builder.tlsContext, builder.windowSize);
     }
 
     public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext) {
@@ -67,6 +60,11 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     }
 
     public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext, int windowSize) {
+        Validate.notNull(bootstrap, "ClientBootstrap must not be null");
+        Validate.notNull(sockOpts, "SocketOptions must not be null");
+        Validate.notNull(tlsContext, "TlsContext must not be null");
+        Validate.isPositive(windowSize, "windowSize must be > 0");
+
         this.bootstrap = bootstrap;
         this.socketOptions = sockOpts;
         this.tlsContext = tlsContext;
@@ -74,6 +72,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     }
 
     private static URI toUri(SdkHttpRequest sdkRequest) {
+        Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
         return invokeSafely(() -> new URI(sdkRequest.protocol(), null, sdkRequest.host(),
                 sdkRequest.port(), null, null, null));
     }
@@ -88,12 +87,14 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     }
 
     private HttpConnection createConnection(URI uri) {
+        Validate.notNull(uri, "URI must not be null");
         // TODO: This is a Blocking call to establish a TCP and TLS connection
         return invokeSafely(() -> HttpConnection.createConnection(uri, bootstrap, socketOptions, tlsContext,
                                                                     windowSize).get());
     }
 
     private HttpConnection getOrCreateConnection(URI uri) {
+        Validate.notNull(uri, "URI must not be null");
         HttpConnection connToReturn = connections.get(uri);
 
         if (connToReturn == null) {
@@ -115,6 +116,8 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     }
 
     private HttpRequest toCrtRequest(SdkHttpRequest sdkRequest) {
+        Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
+
         String method = sdkRequest.method().name();
         String encodedPath = sdkRequest.encodedPath();
         HttpHeader[] headers = new HttpHeader[sdkRequest.headers().size()];
@@ -133,6 +136,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
     @Override
     public CompletableFuture<Void> execute(AsyncExecuteRequest asyncRequest) {
+        Validate.notNull(asyncRequest, "AsyncExecuteRequest must not be null");
         HttpConnection crtConn = getOrCreateConnection(toUri(asyncRequest.request()));
         HttpRequest crtRequest = toCrtRequest(asyncRequest.request());
 
@@ -157,6 +161,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
      * Builder that allows configuration of the AWS CRT HTTP implementation.
      */
     public interface Builder extends SdkAsyncHttpClient.Builder<AwsCrtAsyncHttpClient.Builder> {
+        // TODO: Javadocs
 
         Builder bootstrap(ClientBootstrap boostrap);
 

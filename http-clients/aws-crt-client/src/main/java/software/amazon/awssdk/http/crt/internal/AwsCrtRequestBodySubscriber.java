@@ -27,11 +27,14 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import software.amazon.awssdk.annotations.SdkInternalApi;
+import software.amazon.awssdk.http.async.SdkHttpContentPublisher;
 import software.amazon.awssdk.utils.Logger;
 
 @SdkInternalApi
 public class AwsCrtRequestBodySubscriber implements Subscriber<ByteBuffer> {
     private static final Logger log = Logger.loggerFor(AwsCrtRequestBodySubscriber.class);
+
+    private final SdkHttpContentPublisher reqBodyPublisher;
     private final int windowSize;
     private final Queue<ByteBuffer> queuedBuffers = new ConcurrentLinkedQueue<>();
     private final AtomicInteger queuedBytes = new AtomicInteger(0);
@@ -44,8 +47,11 @@ public class AwsCrtRequestBodySubscriber implements Subscriber<ByteBuffer> {
      *
      * @param windowSize The number bytes to be queued before we stop proactively queuing data
      */
-    AwsCrtRequestBodySubscriber(int windowSize) {
+    AwsCrtRequestBodySubscriber(SdkHttpContentPublisher reqBodyPublisher, int windowSize) {
+        this.reqBodyPublisher = reqBodyPublisher;
         this.windowSize = windowSize;
+
+        reqBodyPublisher.subscribe(this);
     }
 
     protected void requestDataIfNecessary() {
@@ -54,6 +60,7 @@ public class AwsCrtRequestBodySubscriber implements Subscriber<ByteBuffer> {
         }
 
         if (queuedBytes.get() < windowSize) {
+            log.info(() -> "Requesting more data");
             subscription.get().request(1);
         }
     }

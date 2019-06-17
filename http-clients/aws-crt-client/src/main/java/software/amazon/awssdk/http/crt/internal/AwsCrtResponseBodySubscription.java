@@ -29,11 +29,11 @@ public class AwsCrtResponseBodySubscription implements Subscription {
     @Override
     public void request(long n) {
         publisher.request(n);
-        publisher.notifySubscribers();
+        publisher.publishToSubscribers();
     }
 
     @Override
     public void cancel() {
-        publisher.cancel();
+        publisher.setCancelled();
     }
 }

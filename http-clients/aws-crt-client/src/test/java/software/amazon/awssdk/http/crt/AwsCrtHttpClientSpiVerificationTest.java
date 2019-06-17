@@ -12,7 +12,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -39,7 +38,6 @@ import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.async.SdkAsyncHttpResponseHandler;
 
 public class AwsCrtHttpClientSpiVerificationTest {
-
     @Rule
     public WireMockRule mockServer = new WireMockRule(wireMockConfig()
             .dynamicPort()

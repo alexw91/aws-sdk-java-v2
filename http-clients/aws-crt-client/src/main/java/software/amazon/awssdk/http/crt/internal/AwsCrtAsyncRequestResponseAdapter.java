@@ -47,10 +47,8 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
         this.sdkRequest = sdkRequest;
         this.reqComplete = reqComplete;
         this.windowSize = windowSize;
-        this.requestBodySubscriber = new AwsCrtRequestBodySubscriber(windowSize);
+        this.requestBodySubscriber = new AwsCrtRequestBodySubscriber(sdkRequest.requestContentPublisher(), windowSize);
     }
-
-
 
     @Override
     public void onResponseHeaders(HttpStream stream, int responseStatusCode, HttpHeader[] nextHeaders) {
@@ -64,14 +62,12 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     @Override
     public void onResponseHeadersDone(HttpStream stream, boolean hasBody) {
         // TODO: https://github.com/awslabs/aws-crt-java/pull/60
-        // respBuilder.statusCode(stream.getResponseStatusCode());
-
+        respBuilder.statusCode(stream.getResponseStatusCode());
         sdkRequest.responseHandler().onHeaders(respBuilder.build());
-
         respBodyPublisher = new AwsCrtResponseBodyPublisher(stream, windowSize);
 
         if (!hasBody) {
-            respBodyPublisher.complete();
+            respBodyPublisher.setComplete();
         }
 
         sdkRequest.responseHandler().onStream(respBodyPublisher);
@@ -79,12 +75,14 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
 
     @Override
     public int onResponseBody(HttpStream stream, ByteBuffer bodyBytesIn) {
+
         if (respBodyPublisher == null) {
             throw new IllegalStateException("Publisher is null, onResponseHeadersDone() was never called");
         }
 
-        respBodyPublisher.queueBuffer(deepCopy(bodyBytesIn));
-        respBodyPublisher.notifySubscribers();
+        ByteBuffer copy = deepCopy(bodyBytesIn);
+        respBodyPublisher.queueBuffer(copy);
+        respBodyPublisher.publishToSubscribers();
 
         return 0;
     }
@@ -92,17 +90,25 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     @Override
     public void onResponseComplete(HttpStream stream, int errorCode) {
         if (errorCode == CRT.AWS_CRT_SUCCESS) {
-            log.info(() -> "onResponseComplete(): Response Completed Successfully");
-            respBodyPublisher.complete();
+            log.info(() -> "Response Completed Successfully");
+            respBodyPublisher.setComplete();
             reqComplete.complete(null);
         } else {
             HttpException error = new HttpException(errorCode);
-            log.info(() -> "onResponseComplete(): Response Encountered an Error.", error);
-            respBodyPublisher.error(error);
+            log.error(() -> "Response Encountered an Error.", error);
+
+            // Invoke Error Callback on SdkAsyncHttpResponseHandler
+            sdkRequest.responseHandler().onError(error);
+
+            // Invoke Error Callback on any Subscriber's of the Response Body
+            if (respBodyPublisher != null) {
+                respBodyPublisher.setError(error);
+                respBodyPublisher.publishToSubscribers();
+            }
+
             reqComplete.completeExceptionally(error);
         }
 
-        respBodyPublisher.notifySubscribers();
         stream.close();
     }
 
