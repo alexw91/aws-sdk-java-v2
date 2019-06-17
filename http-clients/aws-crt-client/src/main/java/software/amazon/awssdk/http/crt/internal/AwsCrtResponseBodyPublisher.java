@@ -28,6 +28,7 @@ import org.reactivestreams.Subscriber;
 
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.crt.http.HttpStream;
+import software.amazon.awssdk.utils.Logger;
 
 /**
  * Adapts an Response Body stream from CrtHttpStreamHandler to a Publisher<ByteBuffer>
@@ -35,6 +36,7 @@ import software.amazon.awssdk.crt.http.HttpStream;
 @SdkInternalApi
 public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
     private static final LongUnaryOperator DECREMENT_IF_GREATER_THAN_ZERO = x -> ((x > 0) ? (x - 1) : (x));
+    private static final Logger log = Logger.loggerFor(AwsCrtResponseBodyPublisher.class);
 
     private final AtomicLong outstandingRequests = new AtomicLong(0);
     private final HttpStream stream;
@@ -47,8 +49,8 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
 
     /**
-     *
-     * @param stream
+     * Adapts a streaming AWS CRT Http Response Body to a Publisher<ByteBuffer>
+     * @param stream The AWS CRT Http Stream for this Response
      * @param windowSize The max allowed bytes to be queued. The sum of the sizes of all queued ByteBuffers should
      *                   never exceed this value.
      */
@@ -76,7 +78,9 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
      */
     protected void queueBuffer(ByteBuffer buffer) {
         if (isCancelled.get()) {
-            stream.incrementWindow(buffer.remaining()); //TODO: correct?
+            // Immediately open HttpStream's IO window so it doesn't see any IO Back-pressure.
+            // AFAIK there's no way to abort an in-progress HttpStream, only free it's memory by calling close()
+            stream.incrementWindow(buffer.remaining());
             return;
         }
 
@@ -94,11 +98,11 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
     }
 
     protected void error(Throwable t) {
+        log.error(() -> "Error processing Response Body", t);
         error.compareAndSet(null, t);
     }
 
     protected void cancel() {
-        // TODO: Is this correct?
         isCancelled.set(true);
     }
 
@@ -132,9 +136,9 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
             totalAmountTransferred += amount;
         }
 
-        // Open sliding window so Native EventLoop can keep track of IO back-pressure
         if (totalAmountTransferred > 0) {
             queuedBytes.addAndGet(-totalAmountTransferred);
+            // Open HttpStream's IO window so HttpStream can keep track of IO back-pressure
             stream.incrementWindow(totalAmountTransferred);
         }
 

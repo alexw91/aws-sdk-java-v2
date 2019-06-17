@@ -26,10 +26,27 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>aws-crt-client</artifactId>
-    <name>AWS Java SDK :: HTTP Clients :: AWS C Runtime Client</name>
+    <name>AWS Java SDK :: HTTP Clients :: AWS SDK Common Runtime Client</name>
 
 
     <dependencies>
+
+        <!--AWS SDK Common Runtime-->
+        <!--
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <version>0.3.3</version>
+        </dependency>
+        -->
+
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <version>0.3.3</version>
+            <scope>system</scope>
+            <systemPath>/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-crt-java/target/aws-crt-0.2.3-SNAPSHOT.jar</systemPath>
+        </dependency>
 
         <!--SDK dependencies-->
         <dependency>
@@ -47,7 +64,6 @@
             <artifactId>utils</artifactId>
             <version>${awsjavasdk.version}</version>
         </dependency>
-
 
         <!--Test Dependencies-->
         <dependency>
@@ -91,9 +107,10 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk.crt</groupId>
-            <artifactId>aws-crt</artifactId>
-            <version>0.3.3</version>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>http-client-tests</artifactId>
+            <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

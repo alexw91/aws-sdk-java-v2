@@ -25,10 +25,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+
 import software.amazon.awssdk.annotations.SdkInternalApi;
+import software.amazon.awssdk.utils.Logger;
 
 @SdkInternalApi
 public class AwsCrtRequestBodySubscriber implements Subscriber<ByteBuffer> {
+    private static final Logger log = Logger.loggerFor(AwsCrtRequestBodySubscriber.class);
     private final int windowSize;
     private final Queue<ByteBuffer> queuedBuffers = new ConcurrentLinkedQueue<>();
     private final AtomicInteger queuedBytes = new AtomicInteger(0);

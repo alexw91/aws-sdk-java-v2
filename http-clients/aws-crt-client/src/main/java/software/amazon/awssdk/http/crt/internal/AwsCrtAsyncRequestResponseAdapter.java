@@ -27,12 +27,14 @@ import software.amazon.awssdk.crt.http.HttpHeader;
 import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.http.async.AsyncExecuteRequest;
+import software.amazon.awssdk.utils.Logger;
 
 /**
  * Converts the CrtHttpStreamHandler Callbacks to call SDK AsyncExecuteRequest methods
  */
 @SdkInternalApi
 public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
+    private static final Logger log = Logger.loggerFor(AwsCrtAsyncRequestResponseAdapter.class);
     private final AsyncExecuteRequest sdkRequest;
     private final CompletableFuture<Void> reqComplete;
     private final SdkHttpResponse.Builder respBuilder = SdkHttpResponse.builder();
@@ -90,10 +92,12 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     @Override
     public void onResponseComplete(HttpStream stream, int errorCode) {
         if (errorCode == CRT.AWS_CRT_SUCCESS) {
+            log.info(() -> "onResponseComplete(): Response Completed Successfully");
             respBodyPublisher.complete();
             reqComplete.complete(null);
         } else {
             HttpException error = new HttpException(errorCode);
+            log.info(() -> "onResponseComplete(): Response Encountered an Error.", error);
             respBodyPublisher.error(error);
             reqComplete.completeExceptionally(error);
         }
