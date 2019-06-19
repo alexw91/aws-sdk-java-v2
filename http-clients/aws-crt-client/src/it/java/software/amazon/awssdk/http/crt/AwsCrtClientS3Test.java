@@ -19,9 +19,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.TimeUnit;
+import org.apache.log4j.BasicConfigurator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.SocketOptions;
@@ -43,7 +46,7 @@ public class AwsCrtClientS3Test {
 
     private static String FILE_SHA256 = "C7FDB5314B9742467B16BD5EA2F8012190B5E2C44A005F7984F89AAB58219534";
 
-    private static Region REGION = Region.US_WEST_2;
+    private static Region REGION = Region.US_EAST_1;
 
     private static SdkAsyncHttpClient client;
 
@@ -52,6 +55,7 @@ public class AwsCrtClientS3Test {
 
     @Before
     public void setup() {
+        BasicConfigurator.configure();
         client = AwsCrtAsyncHttpClient.builder()
                     .bootstrap(new ClientBootstrap(1))
                     .socketOptions(new SocketOptions())
@@ -61,6 +65,7 @@ public class AwsCrtClientS3Test {
         s3 = S3AsyncClient.builder()
                   .region(REGION)
                   .httpClient(client)
+                  .credentialsProvider(AnonymousCredentialsProvider.create()) // File is publicly readable
                   .build();
     }
 
@@ -85,13 +90,13 @@ public class AwsCrtClientS3Test {
     }
 
     @Test
-    public void testDownloadFromS3() throws NoSuchAlgorithmException {
+    public void testDownloadFromS3() throws Exception {
         GetObjectRequest s3Request = GetObjectRequest.builder()
                 .bucket(BUCKET_NAME)
                 .key(KEY)
                 .build();
 
-        byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).join().asByteArray();
+        byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(60, TimeUnit.SECONDS).asByteArray();
 
         assertThat(calculateBodyHash(responseBody)).isEqualTo(FILE_SHA256);
     }

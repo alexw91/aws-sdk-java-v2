@@ -54,7 +54,9 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     public void onResponseHeaders(HttpStream stream, int responseStatusCode, HttpHeader[] nextHeaders) {
         respBuilder.statusCode(responseStatusCode);
 
+        log.info(() -> "Response Status: " + responseStatusCode);
         for (HttpHeader h : nextHeaders) {
+            log.info(() -> "Response Header: " + h.toString());
             respBuilder.appendHeader(h.getName(), h.getValue());
         }
     }
@@ -65,6 +67,8 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
         sdkRequest.responseHandler().onHeaders(respBuilder.build());
         respBodyPublisher = new AwsCrtResponseBodyPublisher(stream, windowSize);
 
+        log.info(() -> "Response Headers Done. hasBody:" + hasBody);
+
         if (!hasBody) {
             respBodyPublisher.setComplete();
         }
@@ -74,10 +78,12 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
 
     @Override
     public int onResponseBody(HttpStream stream, ByteBuffer bodyBytesIn) {
-
         if (respBodyPublisher == null) {
+            log.error(() -> "Publisher is null, onResponseHeadersDone() was never called");
             throw new IllegalStateException("Publisher is null, onResponseHeadersDone() was never called");
         }
+
+        log.info(() -> "Response Body chunk:" + bodyBytesIn.remaining());
 
         ByteBuffer copy = deepCopy(bodyBytesIn);
         respBodyPublisher.queueBuffer(copy);
@@ -91,6 +97,7 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
         if (errorCode == CRT.AWS_CRT_SUCCESS) {
             log.info(() -> "Response Completed Successfully");
             respBodyPublisher.setComplete();
+            respBodyPublisher.publishToSubscribers();
             reqComplete.complete(null);
         } else {
             HttpException error = new HttpException(errorCode);
@@ -113,6 +120,7 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
 
     @Override
     public boolean sendRequestBody(HttpStream stream, ByteBuffer bodyBytesOut) {
+        log.info(() -> "Request Body chunk:" + bodyBytesOut.remaining());
         return requestBodySubscriber.transferRequestBody(bodyBytesOut);
     }
 }

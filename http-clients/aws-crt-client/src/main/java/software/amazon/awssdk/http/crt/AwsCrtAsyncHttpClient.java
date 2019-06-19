@@ -21,6 +21,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,8 +43,9 @@ import software.amazon.awssdk.utils.Validate;
 
 @SdkPublicApi
 public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
-
     private static final Logger log = Logger.loggerFor(AwsCrtAsyncHttpClient.class);
+    private static final String HOST_HEADER = "Host";
+    private static final String CONTENT_LENGTH = "Content-Length";
     private static final String CLIENT_NAME = "AwsCommonRuntime";
     private static final int DEFAULT_STREAM_WINDOW_SIZE = 4 * 1024 * 1024; // Queue up to 4 MB of Http Body Bytes
     private final Map<URI, HttpConnection> connections = new ConcurrentHashMap<>();
@@ -76,6 +78,13 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
         return invokeSafely(() -> new URI(sdkRequest.protocol(), null, sdkRequest.host(),
                 sdkRequest.port(), null, null, null));
+    }
+
+    private static boolean isNullOrEmpty(List<String> list) {
+        if (list == null || list.size() == 0) {
+            return true;
+        }
+        return false;
     }
 
     public static Builder builder() {
@@ -116,25 +125,52 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         return connToReturn;
     }
 
-    private HttpRequest toCrtRequest(SdkHttpRequest sdkRequest) {
+    private List<HttpHeader> createHttpHeaderList(URI uri, AsyncExecuteRequest asyncRequest) {
+        SdkHttpRequest sdkRequest = asyncRequest.request();
+        List<HttpHeader> crtHeaderList = new ArrayList<>(sdkRequest.headers().size() + 2);
+
+        // TODO: Are Headers Http Encoded?
+
+        // Set Host Header if needed
+        if (isNullOrEmpty(sdkRequest.headers().get(HOST_HEADER))) {
+            crtHeaderList.add(new HttpHeader(HOST_HEADER, uri.getHost()));
+        }
+
+        // Set Content-Length if needed
+        Optional<Long> contentLength = asyncRequest.requestContentPublisher().contentLength();
+        if (isNullOrEmpty(sdkRequest.headers().get(CONTENT_LENGTH)) && contentLength.isPresent()) {
+            crtHeaderList.add(new HttpHeader(CONTENT_LENGTH, Long.toString(contentLength.get())));
+        }
+
+        // Add the rest of the Headers
+        for (Map.Entry<String, List<String>> headerList: sdkRequest.headers().entrySet()) {
+            for (String val: headerList.getValue()) {
+                HttpHeader h = new HttpHeader(headerList.getKey(), val);
+                crtHeaderList.add(h);
+            }
+        }
+
+        return crtHeaderList;
+    }
+
+    private HttpHeader[] asArray(List<HttpHeader> crtHeaderList) {
+        return crtHeaderList.toArray(new HttpHeader[crtHeaderList.size()]);
+    }
+
+    private HttpRequest toCrtRequest(URI uri, AsyncExecuteRequest asyncRequest) {
+        SdkHttpRequest sdkRequest = asyncRequest.request();
         Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
 
         String method = sdkRequest.method().name();
         String encodedPath = sdkRequest.encodedPath();
+        log.info(() -> "Method: " + method);
+        log.info(() -> "Path: " + encodedPath);
 
-        List<HttpHeader> crtHeaderList = new ArrayList<>(sdkRequest.headers().size());
+        HttpHeader[] crtHeaderArray = asArray(createHttpHeaderList(uri, asyncRequest));
 
-        // TODO: Host/Content-Length Header?
-        // TODO: Are Headers Http Encoded?
-
-        for (Map.Entry<String, List<String>> headerList: sdkRequest.headers().entrySet()) {
-            for (String val: headerList.getValue()) {
-                crtHeaderList.add(new HttpHeader(headerList.getKey(), val));
-            }
+        for (HttpHeader h: crtHeaderArray) {
+            log.info(() -> "Header: " + h.toString());
         }
-
-        HttpHeader[] crtHeaderArray = crtHeaderList.toArray(new HttpHeader[crtHeaderList.size()]);
-
 
         return new HttpRequest(method, encodedPath, crtHeaderArray);
     }
@@ -142,8 +178,9 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     @Override
     public CompletableFuture<Void> execute(AsyncExecuteRequest asyncRequest) {
         Validate.notNull(asyncRequest, "AsyncExecuteRequest must not be null");
-        HttpConnection crtConn = getOrCreateConnection(toUri(asyncRequest.request()));
-        HttpRequest crtRequest = toCrtRequest(asyncRequest.request());
+        URI uri = toUri(asyncRequest.request());
+        HttpConnection crtConn = getOrCreateConnection(uri);
+        HttpRequest crtRequest = toCrtRequest(uri, asyncRequest);
 
         CompletableFuture<Void> requestFuture = new CompletableFuture<>();
         AwsCrtAsyncRequestResponseAdapter crtAdapter =
