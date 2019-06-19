@@ -15,7 +15,7 @@
 
 package software.amazon.awssdk.http.crt.internal;
 
-import static software.amazon.awssdk.http.crt.internal.ByteBufferUtils.deepCopy;
+import static software.amazon.awssdk.crt.utils.ByteBufferUtils.deepCopy;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
