@@ -18,6 +18,7 @@ package software.amazon.awssdk.http.crt;
 import static software.amazon.awssdk.utils.FunctionalUtils.invokeSafely;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -120,18 +121,22 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
         String method = sdkRequest.method().name();
         String encodedPath = sdkRequest.encodedPath();
-        HttpHeader[] headers = new HttpHeader[sdkRequest.headers().size()];
+
+        List<HttpHeader> crtHeaderList = new ArrayList<>(sdkRequest.headers().size());
 
         // TODO: Host/Content-Length Header?
-        int i = 0;
-        for (Map.Entry<String, List<String>> e : sdkRequest.headers().entrySet()) {
-            // TODO: Is this String.join() correct? https://stackoverflow.com/a/4371395
-            // TODO: Are Headers Http Encoded?
-            headers[i] = new HttpHeader(e.getKey(), String.join(", ", e.getValue()));
-            i++;
+        // TODO: Are Headers Http Encoded?
+
+        for (Map.Entry<String, List<String>> headerList: sdkRequest.headers().entrySet()) {
+            for (String val: headerList.getValue()) {
+                crtHeaderList.add(new HttpHeader(headerList.getKey(), val));
+            }
         }
 
-        return new HttpRequest(method, encodedPath, headers);
+        HttpHeader[] crtHeaderArray = crtHeaderList.toArray(new HttpHeader[crtHeaderList.size()]);
+
+
+        return new HttpRequest(method, encodedPath, crtHeaderArray);
     }
 
     @Override

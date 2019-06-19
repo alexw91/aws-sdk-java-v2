@@ -26,28 +26,29 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>aws-crt-client</artifactId>
-    <name>AWS Java SDK :: HTTP Clients :: AWS CRT Client</name>
+    <name>AWS Java SDK :: HTTP Clients :: AWS Common Runtime Client</name>
 
 
     <dependencies>
 
         <!--AWS SDK Common Runtime-->
+        <!--
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
-            <version>0.3.3</version>
+            <version>0.3.8</version>
         </dependency>
+        -->
 
         <!-- Local AWS SDK Common Runtime -->
-        <!--
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <version>0.3.3</version>
             <scope>system</scope>
-            <systemPath>/path/to/aws-crt-java/target/aws-crt-X.Y.Z-SNAPSHOT.jar</systemPath>
+            <systemPath>/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-crt-java/target/aws-crt-0.2.3-SNAPSHOT.jar</systemPath>
         </dependency>
-        -->
+
 
         <!--SDK dependencies-->
         <dependency>
@@ -110,6 +111,30 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>http-client-tests</artifactId>
+            <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sdk-core</artifactId>
+            <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>regions</artifactId>
+            <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <artifactId>service-test-utils</artifactId>
+            <groupId>software.amazon.awssdk</groupId>
             <version>${awsjavasdk.version}</version>
             <scope>test</scope>
         </dependency>

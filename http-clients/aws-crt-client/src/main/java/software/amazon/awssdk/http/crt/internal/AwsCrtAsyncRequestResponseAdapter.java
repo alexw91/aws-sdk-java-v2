@@ -61,7 +61,6 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
 
     @Override
     public void onResponseHeadersDone(HttpStream stream, boolean hasBody) {
-        // TODO: https://github.com/awslabs/aws-crt-java/pull/60
         respBuilder.statusCode(stream.getResponseStatusCode());
         sdkRequest.responseHandler().onHeaders(respBuilder.build());
         respBodyPublisher = new AwsCrtResponseBodyPublisher(stream, windowSize);

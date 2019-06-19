@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -46,7 +47,7 @@ public class AwsCrtHttpClientSpiVerificationTest {
     private SdkAsyncHttpClient client;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         client = AwsCrtAsyncHttpClient.builder()
                     .bootstrap(new ClientBootstrap(1))
                     .socketOptions(new SocketOptions())
@@ -91,8 +92,13 @@ public class AwsCrtHttpClientSpiVerificationTest {
         stubFor(any(urlEqualTo("/")).willReturn(aResponse().withStatus(204).withHeader("foo", "bar")));
 
         CompletableFuture<Boolean> streamReceived = new CompletableFuture<>();
+        final AtomicReference<SdkHttpResponse> response = new AtomicReference<>(null);
 
         SdkAsyncHttpResponseHandler handler = new TestResponseHandler() {
+            @Override
+            public void onHeaders(SdkHttpResponse headers) {
+                response.compareAndSet(null, headers);
+            }
             @Override
             public void onStream(Publisher<ByteBuffer> stream) {
                 super.onStream(stream);
@@ -109,6 +115,9 @@ public class AwsCrtHttpClientSpiVerificationTest {
                 .build());
 
         assertThat(streamReceived.get(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(response.get() != null).isTrue();
+        assertThat(response.get().statusCode() == 204).isTrue();
+        assertThat(!response.get().headers().get("foo").isEmpty()).isTrue();
     }
 
     private SdkHttpFullRequest createRequest(URI endpoint) {

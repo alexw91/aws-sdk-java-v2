@@ -16,9 +16,9 @@
 package software.amazon.awssdk.http.crt.internal;
 
 import java.nio.ByteBuffer;
-import software.amazon.awssdk.annotations.SdkPublicApi;
+import software.amazon.awssdk.annotations.SdkInternalApi;
 
-@SdkPublicApi
+@SdkInternalApi
 public class ByteBufferUtils {
     private ByteBufferUtils() {}
 
@@ -29,7 +29,16 @@ public class ByteBufferUtils {
      * @return A new ByteBuffer containing a deep copy of the input ByteBuffer.
      */
     public static ByteBuffer deepCopy(ByteBuffer input) {
-        return ByteBuffer.allocate(input.remaining()).put(input);
+        // Allocate a new ByteBuffer that's large enough to store a copy
+        ByteBuffer deepCopy = ByteBuffer.allocate(input.remaining());
+
+        // Copy contents of input buffer to new Buffer
+        deepCopy.put(input);
+
+        // Flip deepCopy from Write mode to Read Mode
+        deepCopy.flip();
+
+        return deepCopy;
     }
 
     /**
