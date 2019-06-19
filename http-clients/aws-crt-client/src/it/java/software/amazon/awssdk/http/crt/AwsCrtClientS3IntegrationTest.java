@@ -35,7 +35,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 
-public class AwsCrtClientS3Test {
+public class AwsCrtClientS3IntegrationTest {
 
     /**
      * The name of the bucket created, used, and deleted by these tests.
