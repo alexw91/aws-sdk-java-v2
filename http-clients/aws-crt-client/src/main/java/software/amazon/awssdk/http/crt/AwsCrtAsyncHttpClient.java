@@ -36,7 +36,7 @@ import software.amazon.awssdk.http.SdkHttpConfigurationOption;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.async.AsyncExecuteRequest;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
-import software.amazon.awssdk.http.crt.internal.AwsCrtAsyncRequestResponseAdapter;
+import software.amazon.awssdk.http.crt.internal.AwsCrtAsyncHttpStreamAdapter;
 import software.amazon.awssdk.utils.AttributeMap;
 import software.amazon.awssdk.utils.Logger;
 import software.amazon.awssdk.utils.Validate;
@@ -183,8 +183,8 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         HttpRequest crtRequest = toCrtRequest(uri, asyncRequest);
 
         CompletableFuture<Void> requestFuture = new CompletableFuture<>();
-        AwsCrtAsyncRequestResponseAdapter crtAdapter =
-                new AwsCrtAsyncRequestResponseAdapter(requestFuture, asyncRequest, windowSize);
+        AwsCrtAsyncHttpStreamAdapter crtAdapter =
+                new AwsCrtAsyncHttpStreamAdapter(requestFuture, asyncRequest, windowSize);
 
         invokeSafely(() -> crtConn.makeRequest(crtRequest, crtAdapter));
 

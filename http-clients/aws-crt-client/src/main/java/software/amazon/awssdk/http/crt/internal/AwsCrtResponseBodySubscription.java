@@ -18,11 +18,14 @@ package software.amazon.awssdk.http.crt.internal;
 import org.reactivestreams.Subscription;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 
+/**
+ * Helper Class that passes through calls from a Subscription to a AwsCrtResponseBodyPublisher
+ */
 @SdkInternalApi
 public class AwsCrtResponseBodySubscription implements Subscription {
     private final AwsCrtResponseBodyPublisher publisher;
 
-    AwsCrtResponseBodySubscription(AwsCrtResponseBodyPublisher publisher) {
+    public AwsCrtResponseBodySubscription(AwsCrtResponseBodyPublisher publisher) {
         this.publisher = publisher;
     }
 

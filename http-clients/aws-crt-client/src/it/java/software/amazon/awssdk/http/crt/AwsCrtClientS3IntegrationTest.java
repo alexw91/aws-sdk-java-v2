@@ -15,12 +15,10 @@
 
 package software.amazon.awssdk.http.crt;
 
+import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.TimeUnit;
-import org.apache.log4j.BasicConfigurator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,7 +53,6 @@ public class AwsCrtClientS3IntegrationTest {
 
     @Before
     public void setup() {
-        BasicConfigurator.configure();
         client = AwsCrtAsyncHttpClient.builder()
                     .bootstrap(new ClientBootstrap(1))
                     .socketOptions(new SocketOptions())
@@ -75,20 +72,6 @@ public class AwsCrtClientS3IntegrationTest {
         s3.close();
     }
 
-    public static String byteArrayToHex(byte[] input) {
-        StringBuilder output = new StringBuilder(input.length * 2);
-        for (byte b: input) {
-            output.append(String.format("%02X", b));
-        }
-        return output.toString();
-    }
-
-    private String calculateBodyHash(byte[] bodyBuffer) throws NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        digest.update(bodyBuffer);
-        return byteArrayToHex(digest.digest());
-    }
-
     @Test
     public void testDownloadFromS3() throws Exception {
         GetObjectRequest s3Request = GetObjectRequest.builder()
@@ -98,6 +81,6 @@ public class AwsCrtClientS3IntegrationTest {
 
         byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(60, TimeUnit.SECONDS).asByteArray();
 
-        assertThat(calculateBodyHash(responseBody)).isEqualTo(FILE_SHA256);
+        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
     }
 }

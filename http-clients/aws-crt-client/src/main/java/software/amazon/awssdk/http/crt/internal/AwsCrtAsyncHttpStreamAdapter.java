@@ -28,13 +28,14 @@ import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.http.async.AsyncExecuteRequest;
 import software.amazon.awssdk.utils.Logger;
+import software.amazon.awssdk.utils.Validate;
 
 /**
- * Converts the CrtHttpStreamHandler Callbacks to call SDK AsyncExecuteRequest methods
+ * Implements the CrtHttpStreamHandler API and converts CRT callbacks into calls to SDK AsyncExecuteRequest methods
  */
 @SdkInternalApi
-public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
-    private static final Logger log = Logger.loggerFor(AwsCrtAsyncRequestResponseAdapter.class);
+public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
+    private static final Logger log = Logger.loggerFor(AwsCrtAsyncHttpStreamAdapter.class);
     private final AsyncExecuteRequest sdkRequest;
     private final CompletableFuture<Void> reqComplete;
     private final SdkHttpResponse.Builder respBuilder = SdkHttpResponse.builder();
@@ -42,8 +43,12 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     private final AwsCrtRequestBodySubscriber requestBodySubscriber;
     private AwsCrtResponseBodyPublisher respBodyPublisher = null;
 
-    public AwsCrtAsyncRequestResponseAdapter(CompletableFuture<Void> reqComplete, AsyncExecuteRequest sdkRequest,
-                                             int windowSize) {
+    public AwsCrtAsyncHttpStreamAdapter(CompletableFuture<Void> reqComplete, AsyncExecuteRequest sdkRequest,
+                                        int windowSize) {
+        Validate.notNull(reqComplete, "reqComplete Future is null");
+        Validate.notNull(sdkRequest, "AsyncExecuteRequest Future is null");
+        Validate.isPositive(windowSize, "windowSize is <= 0");
+
         this.sdkRequest = sdkRequest;
         this.reqComplete = reqComplete;
         this.windowSize = windowSize;
@@ -54,20 +59,18 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
     public void onResponseHeaders(HttpStream stream, int responseStatusCode, HttpHeader[] nextHeaders) {
         respBuilder.statusCode(responseStatusCode);
 
-        log.info(() -> "Response Status: " + responseStatusCode);
         for (HttpHeader h : nextHeaders) {
-            log.info(() -> "Response Header: " + h.toString());
             respBuilder.appendHeader(h.getName(), h.getValue());
         }
     }
 
     @Override
     public void onResponseHeadersDone(HttpStream stream, boolean hasBody) {
+        // TODO: Confirm that this callback is guaranteed to be called even if there are zero Response Headers
         respBuilder.statusCode(stream.getResponseStatusCode());
         sdkRequest.responseHandler().onHeaders(respBuilder.build());
         respBodyPublisher = new AwsCrtResponseBodyPublisher(stream, windowSize);
 
-        log.info(() -> "Response Headers Done. hasBody:" + hasBody);
 
         if (!hasBody) {
             respBodyPublisher.setComplete();
@@ -82,8 +85,6 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
             log.error(() -> "Publisher is null, onResponseHeadersDone() was never called");
             throw new IllegalStateException("Publisher is null, onResponseHeadersDone() was never called");
         }
-
-        log.info(() -> "Response Body chunk:" + bodyBytesIn.remaining());
 
         ByteBuffer copy = deepCopy(bodyBytesIn);
         respBodyPublisher.queueBuffer(copy);
@@ -120,7 +121,6 @@ public class AwsCrtAsyncRequestResponseAdapter implements CrtHttpStreamHandler {
 
     @Override
     public boolean sendRequestBody(HttpStream stream, ByteBuffer bodyBytesOut) {
-        log.info(() -> "Request Body chunk:" + bodyBytesOut.remaining());
         return requestBodySubscriber.transferRequestBody(bodyBytesOut);
     }
 }

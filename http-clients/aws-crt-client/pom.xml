@@ -36,15 +36,16 @@
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
-            <version>0.3.8</version>
+            <version>0.3.10</version>
         </dependency>
         -->
 
         <!-- Local AWS SDK Common Runtime -->
+        <!-- TODO: Figure out why the aws-crt-java JAR uploaded to Maven results in libcrypto linker errors -->
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
-            <version>0.3.3</version>
+            <version>0.3.8</version>
             <scope>system</scope>
             <systemPath>/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-crt-java/target/aws-crt-0.2.3-SNAPSHOT.jar</systemPath>
         </dependency>
@@ -142,6 +143,12 @@
             <artifactId>service-test-utils</artifactId>
             <groupId>software.amazon.awssdk</groupId>
             <version>${awsjavasdk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>${commons-codec.verion}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
