@@ -120,7 +120,12 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
             }
         }
 
-        // TODO: Check if connection is shutdown/closed, and open a new connection if necessary
+        // If connection was shutdown by peer, open a new connection
+        if (connToReturn.getShutdownFuture().isDone()) {
+            connections.remove(uri, connToReturn);
+            connToReturn.close();
+            return getOrCreateConnection(uri);
+        }
 
         return connToReturn;
     }
@@ -159,18 +164,13 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
     private HttpRequest toCrtRequest(URI uri, AsyncExecuteRequest asyncRequest) {
         SdkHttpRequest sdkRequest = asyncRequest.request();
+        Validate.notNull(uri, "URI must not be null");
         Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
 
         String method = sdkRequest.method().name();
         String encodedPath = sdkRequest.encodedPath();
-        log.info(() -> "Method: " + method);
-        log.info(() -> "Path: " + encodedPath);
 
         HttpHeader[] crtHeaderArray = asArray(createHttpHeaderList(uri, asyncRequest));
-
-        for (HttpHeader h: crtHeaderArray) {
-            log.info(() -> "Header: " + h.toString());
-        }
 
         return new HttpRequest(method, encodedPath, crtHeaderArray);
     }
@@ -178,6 +178,10 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     @Override
     public CompletableFuture<Void> execute(AsyncExecuteRequest asyncRequest) {
         Validate.notNull(asyncRequest, "AsyncExecuteRequest must not be null");
+        Validate.notNull(asyncRequest.request(), "SdkHttpRequest must not be null");
+        Validate.notNull(asyncRequest.requestContentPublisher(), "RequestContentPublisher must not be null");
+        Validate.notNull(asyncRequest.responseHandler(), "ResponseHandler must not be null");
+
         URI uri = toUri(asyncRequest.request());
         HttpConnection crtConn = getOrCreateConnection(uri);
         HttpRequest crtRequest = toCrtRequest(uri, asyncRequest);
@@ -194,7 +198,6 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     @Override
     public void close() {
         for (HttpConnection conn : connections.values()) {
-            // TODO: This shuts down and closes connections serially, can be made faster if shutdown in parallel.
             conn.close();
         }
     }
@@ -203,14 +206,33 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
      * Builder that allows configuration of the AWS CRT HTTP implementation.
      */
     public interface Builder extends SdkAsyncHttpClient.Builder<AwsCrtAsyncHttpClient.Builder> {
-        // TODO: Javadocs
 
+        /**
+         * The AWS CRT Bootstrap Instance to use for this Client
+         * @param boostrap The AWS Common Runtime Bootstrap
+         * @return the builder of the method chaining.
+         */
         Builder bootstrap(ClientBootstrap boostrap);
 
+        /**
+         * The AWS CRT SocketOptions to use for this Client.
+         * @param socketOptions The AWS Common Runtime SocketOptions
+         * @return the builder of the method chaining.
+         */
         Builder socketOptions(SocketOptions socketOptions);
 
+        /**
+         * The AWS CRT TlsContext to use for this Client
+         * @param tlsContext The AWS Common Runtime TlsContext
+         * @return the builder of the method chaining.
+         */
         Builder tlsContext(TlsContext tlsContext);
 
+        /**
+         * The AWS CRT WindowSize to use for this HttpClient
+         * @param windowSize The AWS Common Runtime WindowSize
+         * @return the builder of the method chaining.
+         */
         Builder windowSize(int windowSize);
     }
 
