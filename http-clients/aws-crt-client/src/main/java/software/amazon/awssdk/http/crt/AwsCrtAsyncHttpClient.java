@@ -135,8 +135,6 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         SdkHttpRequest sdkRequest = asyncRequest.request();
         List<HttpHeader> crtHeaderList = new ArrayList<>(sdkRequest.headers().size() + 2);
 
-        // TODO: Are Headers Http Encoded?
-
         // Set Host Header if needed
         if (isNullOrEmpty(sdkRequest.headers().get(HOST_HEADER))) {
             crtHeaderList.add(new HttpHeader(HOST_HEADER, uri.getHost()));
