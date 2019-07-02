@@ -40,6 +40,7 @@ import software.amazon.awssdk.http.crt.internal.AwsCrtAsyncHttpStreamAdapter;
 import software.amazon.awssdk.utils.AttributeMap;
 import software.amazon.awssdk.utils.Logger;
 import software.amazon.awssdk.utils.Validate;
+import software.amazon.awssdk.utils.http.SdkHttpUtils;
 
 @SdkPublicApi
 public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
@@ -169,10 +170,13 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
         String method = sdkRequest.method().name();
         String encodedPath = sdkRequest.encodedPath();
+        String encodedQueryString = SdkHttpUtils.encodeAndFlattenQueryParameters(sdkRequest.rawQueryParameters())
+                .map(value -> "?" + value)
+                .orElse("");
 
         HttpHeader[] crtHeaderArray = asArray(createHttpHeaderList(uri, asyncRequest));
 
-        return new HttpRequest(method, encodedPath, crtHeaderArray);
+        return new HttpRequest(method, encodedPath + encodedQueryString, crtHeaderArray);
     }
 
     @Override
