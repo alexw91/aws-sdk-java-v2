@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongUnaryOperator;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.utils.Logger;
@@ -36,16 +35,18 @@ import software.amazon.awssdk.utils.Validate;
  */
 @SdkInternalApi
 public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
-    private static final LongUnaryOperator DECREMENT_IF_GREATER_THAN_ZERO = x -> ((x > 0) ? (x - 1) : (x));
     private static final Logger log = Logger.loggerFor(AwsCrtResponseBodyPublisher.class);
+    private static final LongUnaryOperator DECREMENT_IF_GREATER_THAN_ZERO = x -> ((x > 0) ? (x - 1) : (x));
 
     private final AtomicLong outstandingRequests = new AtomicLong(0);
     private final HttpStream stream;
     private final int windowSize;
     private final AtomicBoolean isCancelled = new AtomicBoolean(false);
-    private final AtomicBoolean isComplete = new AtomicBoolean(false);
+    private final AtomicBoolean isSubscriptionComplete = new AtomicBoolean(false);
+    private final AtomicBoolean queueComplete = new AtomicBoolean(false);
+    private final AtomicInteger mutualRecursionDepth = new AtomicInteger(0);
     private final AtomicInteger queuedBytes = new AtomicInteger(0);
-    private final AtomicReference<Subscriber<? super ByteBuffer>> subscriber = new AtomicReference<>(null);
+    private final AtomicReference<Subscriber<? super ByteBuffer>> subscriberRef = new AtomicReference<>(null);
     private final Queue<ByteBuffer> queuedBuffers = new ConcurrentLinkedQueue<>();
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
 
@@ -66,23 +67,22 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
     public void subscribe(Subscriber<? super ByteBuffer> application) {
         Validate.notNull(application, "Subscriber must not be null");
 
-        boolean wasFirstSubscriber = subscriber.compareAndSet(null, application);
+        boolean wasFirstSubscriber = subscriberRef.compareAndSet(null, application);
 
         if (!wasFirstSubscriber) {
             log.error(() -> "Only one subscriber allowed");
-            application.onError(new RuntimeException("Only one subscriber allowed"));
+            application.onError(new IllegalStateException("Only one subscriber allowed"));
             return;
         }
 
-        subscriber.get().onSubscribe(new AwsCrtResponseBodySubscription(this));
+        application.onSubscribe(new AwsCrtResponseBodySubscription(this));
     }
 
     /**
-     * Adds a Buffer to the Queue
-     *
-     * @param buffer
+     * Adds a Buffer to the Queue to be published to any Subscribers
+     * @param buffer The Buffer to be queued.
      */
-    protected void queueBuffer(ByteBuffer buffer) {
+    public void queueBuffer(ByteBuffer buffer) {
         Validate.notNull(buffer, "ByteBuffer must not be null");
 
         if (isCancelled.get()) {
@@ -101,23 +101,60 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         }
     }
 
+    /**
+     * Function called by subscribers to request more buffers.
+     * @param n The number of buffers requested.
+     */
     protected void request(long n) {
-        long remaining = outstandingRequests.addAndGet(n);
+        Validate.inclusiveBetween(1, Long.MAX_VALUE, n, "request");
+
+        // Check for overflow of outstanding Requests, and clamp to LONG_MAX.
+        long remaining;
+        if (n > (Long.MAX_VALUE - outstandingRequests.get())) {
+            outstandingRequests.set(Long.MAX_VALUE);
+            remaining = Long.MAX_VALUE;
+        } else {
+            remaining = outstandingRequests.addAndGet(n);
+        }
+
         log.trace(() -> "Subscriber Requested more Data. Outstanding Requests: " + remaining);
     }
 
-    protected void setError(Throwable t) {
+    public void setError(Throwable t) {
         log.error(() -> "Error processing Response Body", t);
         error.compareAndSet(null, t);
     }
 
     protected void setCancelled() {
         isCancelled.set(true);
+        subscriberRef.set(null);
     }
 
-    protected void setComplete() {
-        isComplete.set(true);
+    public void setQueueComplete() {
+        queueComplete.set(true);
         log.trace(() -> "Response Body Publisher queue marked as completed.");
+    }
+
+    protected void completeSubscription() {
+        boolean wasComplete = isSubscriptionComplete.getAndSet(true);
+
+        if (wasComplete) {
+            return;
+        }
+
+        Subscriber s = subscriberRef.getAndSet(null);
+
+        if (s == null) {
+            return;
+        }
+
+        Throwable throwable = error.get();
+
+        if (throwable != null) {
+            s.onError(throwable);
+        } else {
+            s.onComplete();
+        }
     }
 
     /**
@@ -127,24 +164,33 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
      * subscriber seeing out-of-order data. To avoid this race condition, this method must be synchronized.
      */
     protected synchronized void publishToSubscribers() {
-        if (subscriber.get() == null) {
+        Subscriber subscriber = subscriberRef.get();
+        if (subscriber == null) {
             log.warn(() -> "No Subscribers to publish to");
             return;
         }
 
         if (error.get() != null) {
-            subscriber.get().onError(error.get());
+            completeSubscription();
+            return;
+        }
+
+        if (mutualRecursionDepth.get() > 0) {
+            /**
+             * If our depth is > 0, then we already made a call to publishToSubscribers() further up the stack that
+             * will continue publishing to subscribers, and this call should return without completing work to avoid
+             * infinite recursive loop between: "subscription.request() -> subscriber.onNext() -> subscription.request()"
+             */
             return;
         }
 
         int totalAmountTransferred = 0;
 
-        // Push data to Subscribers
         while (outstandingRequests.get() > 0 && queuedBuffers.size() > 0) {
             ByteBuffer buffer = queuedBuffers.poll();
             outstandingRequests.getAndUpdate(DECREMENT_IF_GREATER_THAN_ZERO);
             int amount = buffer.remaining();
-            subscriber.get().onNext(buffer);
+            publishWithoutMutualRecursion(subscriber, buffer);
             totalAmountTransferred += amount;
         }
 
@@ -155,9 +201,30 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         }
 
         // Check if Complete
-        if (queuedBuffers.size() == 0 && isComplete.get()) {
-            log.trace(() -> "Notifying Subscriber of completed stream");
-            subscriber.get().onComplete();
+        if (queueComplete.get() && queuedBuffers.size() == 0) {
+            completeSubscription();
+        }
+    }
+
+    /**
+     * This method is used to avoid a StackOverflow due to the potential infinite loop between
+     * "subscription.request() -> subscriber.onNext() -> subscription.request()" calls. We only call subscriber.onNext()
+     * if the recursion depth is zero, otherwise we return up to the stack frame with depth zero and continue publishing
+     * from there.
+     * @param subscriber The Subscriber to publish to.
+     * @param buffer The buffer to publish to the subscriber.
+     */
+    private synchronized void publishWithoutMutualRecursion(Subscriber<ByteBuffer> subscriber, ByteBuffer buffer) {
+        try {
+            /**
+             * Need to keep track of recursion depth between .onNext() -> .request() calls
+             */
+            int depth = mutualRecursionDepth.getAndIncrement();
+            if (depth == 0) {
+                subscriber.onNext(buffer);
+            }
+        } finally {
+            mutualRecursionDepth.decrementAndGet();
         }
     }
 

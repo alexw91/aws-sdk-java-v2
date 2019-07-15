@@ -73,7 +73,7 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
 
 
         if (!hasBody) {
-            respBodyPublisher.setComplete();
+            respBodyPublisher.setQueueComplete();
         }
 
         sdkRequest.responseHandler().onStream(respBodyPublisher);
@@ -97,7 +97,7 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
     public void onResponseComplete(HttpStream stream, int errorCode) {
         if (errorCode == CRT.AWS_CRT_SUCCESS) {
             log.info(() -> "Response Completed Successfully");
-            respBodyPublisher.setComplete();
+            respBodyPublisher.setQueueComplete();
             respBodyPublisher.publishToSubscribers();
             reqComplete.complete(null);
         } else {

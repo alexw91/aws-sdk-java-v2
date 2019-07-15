@@ -17,12 +17,14 @@ package software.amazon.awssdk.http.crt.internal;
 
 import org.reactivestreams.Subscription;
 import software.amazon.awssdk.annotations.SdkInternalApi;
+import software.amazon.awssdk.utils.Logger;
 
 /**
  * Helper Class that passes through calls from a Subscription to a AwsCrtResponseBodyPublisher
  */
 @SdkInternalApi
 public class AwsCrtResponseBodySubscription implements Subscription {
+    private static final Logger log = Logger.loggerFor(AwsCrtResponseBodySubscription.class);
     private final AwsCrtResponseBodyPublisher publisher;
 
     public AwsCrtResponseBodySubscription(AwsCrtResponseBodyPublisher publisher) {
@@ -31,6 +33,13 @@ public class AwsCrtResponseBodySubscription implements Subscription {
 
     @Override
     public void request(long n) {
+        if (n <= 0) {
+            // Reactive Stream Spec requires us to call onError() callback instead of throwing Exception here.
+            publisher.setError(new IllegalArgumentException("Request is for <= 0 elements: " + n));
+            publisher.publishToSubscribers();
+            return;
+        }
+
         publisher.request(n);
         publisher.publishToSubscribers();
     }
