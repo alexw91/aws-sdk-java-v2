@@ -113,55 +113,59 @@ public class AwsCrtClientS3Test {
 
     @Test
     public void testDownloadFromS3Async() throws Exception {
-        for (int i = 0; i < 10; i++) {
+
             testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
             testDownloadFromS3Async("AwsCrtAsyncHttpClient  ", s3CrtClient);
             testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
             //testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
             testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
             testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
-        }
+
 
     }
 
     public void testDownloadFromS3Async(String client, S3AsyncClient s3) throws Exception {
-        GetObjectRequest s3Request = GetObjectRequest.builder()
-                .bucket(BUCKET_NAME)
-                .key(KEY)
-                .build();
+        for (int i = 0; i < 5; i++) {
+            GetObjectRequest s3Request = GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(KEY)
+                    .build();
 
-        long start = System.currentTimeMillis();
-        byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(60, TimeUnit.SECONDS).asByteArray();
-        long end = System.currentTimeMillis();
+            long start = System.currentTimeMillis();
+            byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(300, TimeUnit.SECONDS).asByteArray();
+            long end = System.currentTimeMillis();
 
-        System.out.println(client + " Millis: " + (end - start));
-        System.out.println(client + " Size  : " + responseBody.length);
+            System.out.println(client + " Millis: " + (end - start));
+//            System.out.println(client + " Size  : " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
+        }
     }
 
     public void testDownloadFromS3(String client, S3Client s3) throws Exception {
-        GetObjectRequest s3Request = GetObjectRequest.builder()
-                .bucket(BUCKET_NAME)
-                .key(KEY)
-                .build();
+        for (int i = 0; i < 5; i++) {
+            GetObjectRequest s3Request = GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(KEY)
+                    .build();
 
-        byte[] copy = new byte[129 * 1024 * 1024];
-        int pos = 0;
+            byte[] copy = new byte[129 * 1024 * 1024];
+            int pos = 0;
 
-        long start = System.currentTimeMillis();
-        ResponseInputStream<GetObjectResponse> resp = s3.getObject(s3Request);
+            long start = System.currentTimeMillis();
+            ResponseInputStream<GetObjectResponse> resp = s3.getObject(s3Request);
 
-        int remaining = resp.response().contentLength().intValue();
-        while (remaining > 0) {
-            int amntRead = resp.read(copy, pos, remaining);
-            pos += amntRead;
-            remaining -= amntRead;
+            int remaining = resp.response().contentLength().intValue();
+            while (remaining > 0) {
+                int amntRead = resp.read(copy, pos, remaining);
+                pos += amntRead;
+                remaining -= amntRead;
+            }
+            long end = System.currentTimeMillis();
+
+
+            System.out.println(client + " Millis: " + (end - start));
+//            System.out.println(client + " Size  : " + resp.response().contentLength());
         }
-        long end = System.currentTimeMillis();
-
-
-        System.out.println(client + " Millis: " + (end - start));
-        System.out.println(client + " Size  : " + resp.response().contentLength());
     }
 }
