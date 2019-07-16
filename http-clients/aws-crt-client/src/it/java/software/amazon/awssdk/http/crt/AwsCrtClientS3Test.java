@@ -150,7 +150,7 @@ public class AwsCrtClientS3Test {
     }
 
     public void testDownloadFromS3Async(String client, S3AsyncClient s3) throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             GetObjectRequest s3Request = GetObjectRequest.builder()
                     .bucket(BUCKET_NAME)
                     .key(KEY)
@@ -169,7 +169,7 @@ public class AwsCrtClientS3Test {
     }
 
     public void testDownloadFromS3(String client, S3Client s3) throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             GetObjectRequest s3Request = GetObjectRequest.builder()
                     .bucket(BUCKET_NAME)
                     .key(KEY)
