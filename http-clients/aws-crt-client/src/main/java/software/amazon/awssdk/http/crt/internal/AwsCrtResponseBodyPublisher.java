@@ -31,7 +31,7 @@ import software.amazon.awssdk.utils.Logger;
 import software.amazon.awssdk.utils.Validate;
 
 /**
- * Adapts an Response Body stream from CrtHttpStreamHandler to a Publisher<ByteBuffer>
+ * Adapts an AWS Common Runtime Response Body stream from CrtHttpStreamHandler to a Publisher<ByteBuffer>
  */
 @SdkInternalApi
 public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
@@ -63,19 +63,23 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         this.windowSize = windowSize;
     }
 
+    /**
+     * Method for the users consuming the Http Response Body to register a subscriber.
+     * @param subscriber The Subscriber to register.
+     */
     @Override
-    public void subscribe(Subscriber<? super ByteBuffer> application) {
-        Validate.notNull(application, "Subscriber must not be null");
+    public void subscribe(Subscriber<? super ByteBuffer> subscriber) {
+        Validate.notNull(subscriber, "Subscriber must not be null");
 
-        boolean wasFirstSubscriber = subscriberRef.compareAndSet(null, application);
+        boolean wasFirstSubscriber = subscriberRef.compareAndSet(null, subscriber);
 
         if (!wasFirstSubscriber) {
             log.error(() -> "Only one subscriber allowed");
-            application.onError(new IllegalStateException("Only one subscriber allowed"));
+            subscriber.onError(new IllegalStateException("Only one subscriber allowed"));
             return;
         }
 
-        application.onSubscribe(new AwsCrtResponseBodySubscription(this));
+        subscriber.onSubscribe(new AwsCrtResponseBodySubscription(this));
     }
 
     /**
@@ -102,22 +106,22 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
     }
 
     /**
-     * Function called by subscribers to request more buffers.
+     * Function called by Response Body Subscribers to request more Response Body buffers.
      * @param n The number of buffers requested.
      */
     protected void request(long n) {
         Validate.inclusiveBetween(1, Long.MAX_VALUE, n, "request");
 
         // Check for overflow of outstanding Requests, and clamp to LONG_MAX.
-        long remaining;
+        long outstandingReqs;
         if (n > (Long.MAX_VALUE - outstandingRequests.get())) {
             outstandingRequests.set(Long.MAX_VALUE);
-            remaining = Long.MAX_VALUE;
+            outstandingReqs = Long.MAX_VALUE;
         } else {
-            remaining = outstandingRequests.addAndGet(n);
+            outstandingReqs = outstandingRequests.addAndGet(n);
         }
 
-        log.trace(() -> "Subscriber Requested more Data. Outstanding Requests: " + remaining);
+        log.trace(() -> "Subscriber Requested more Buffers. Outstanding Requests: " + outstandingReqs);
     }
 
     public void setError(Throwable t) {
@@ -127,6 +131,10 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
 
     protected void setCancelled() {
         isCancelled.set(true);
+        /**
+         * subscriberRef must set to null due to ReactiveStream Spec stating references to Subscribers must be deleted
+         * when onCancel() is called.
+         */
         subscriberRef.set(null);
     }
 
@@ -135,10 +143,13 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         log.trace(() -> "Response Body Publisher queue marked as completed.");
     }
 
-    protected void completeSubscription() {
-        boolean wasComplete = isSubscriptionComplete.getAndSet(true);
+    /**
+     * Completes the Subscription by calling either the .onError() or .onComplete() callbacks exactly once.
+     */
+    protected void completeSubscriptionExactlyOnce() {
+        boolean alreadyComplete = isSubscriptionComplete.getAndSet(true);
 
-        if (wasComplete) {
+        if (alreadyComplete) {
             return;
         }
 
@@ -171,7 +182,7 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         }
 
         if (error.get() != null) {
-            completeSubscription();
+            completeSubscriptionExactlyOnce();
             return;
         }
 
@@ -202,7 +213,7 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
 
         // Check if Complete
         if (queueComplete.get() && queuedBuffers.size() == 0) {
-            completeSubscription();
+            completeSubscriptionExactlyOnce();
         }
     }
 

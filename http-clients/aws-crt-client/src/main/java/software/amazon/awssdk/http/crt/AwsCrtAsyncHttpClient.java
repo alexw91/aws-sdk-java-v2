@@ -106,7 +106,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
     private HttpConnection createConnection(URI uri) {
         Validate.notNull(uri, "URI must not be null");
-        // TODO: This is a Blocking call to establish a TCP and TLS connection
+        log.debug(() -> "Creating Connection to: " + uri);
         return invokeSafely(() -> HttpConnection.createConnection(uri, bootstrap, socketOptions, tlsContext,
                                                                     windowSize).get());
     }
@@ -196,10 +196,10 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         HttpRequest crtRequest = toCrtRequest(uri, asyncRequest);
 
         CompletableFuture<Void> requestFuture = new CompletableFuture<>();
-        AwsCrtAsyncHttpStreamAdapter crtAdapter =
+        AwsCrtAsyncHttpStreamAdapter crtToSdkAdapter =
                 new AwsCrtAsyncHttpStreamAdapter(requestFuture, asyncRequest, windowSize);
 
-        invokeSafely(() -> crtConn.makeRequest(crtRequest, crtAdapter));
+        invokeSafely(() -> crtConn.makeRequest(crtRequest, crtToSdkAdapter));
 
         return requestFuture;
     }
