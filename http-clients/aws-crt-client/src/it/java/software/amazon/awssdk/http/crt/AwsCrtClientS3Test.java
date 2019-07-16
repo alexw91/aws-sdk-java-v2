@@ -135,7 +135,7 @@ public class AwsCrtClientS3Test {
         long end = System.currentTimeMillis();
 
         System.out.println(client + " Millis: " + (end - start));
-        System.out.println(client + " Size: " + responseBody.length);
+        System.out.println(client + " Size  : " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
     }
@@ -162,6 +162,6 @@ public class AwsCrtClientS3Test {
 
 
         System.out.println(client + " Millis: " + (end - start));
-        System.out.println(client + " Size: " + resp.response().contentLength());
+        System.out.println(client + " Size  : " + resp.response().contentLength());
     }
 }
