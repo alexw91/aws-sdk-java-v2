@@ -18,6 +18,7 @@ package software.amazon.awssdk.http.crt;
 import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.text.DecimalFormat;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
@@ -111,6 +112,15 @@ public class AwsCrtClientS3Test {
         s3CrtClient.close();
     }
 
+    private String mbps(int numBytes, long millis) {
+        double bytesPerSec = ((double) numBytes) / (((double) millis) / 1000);
+        double megabitsPerSec = (bytesPerSec * 8)/ ((double) (1024 * 1024));
+
+        DecimalFormat df = new DecimalFormat();
+        df.setMaximumFractionDigits(2);
+        return df.format(megabitsPerSec);
+    }
+
     @Test
     public void testDownloadFromS3Async() throws Exception {
 
@@ -125,7 +135,7 @@ public class AwsCrtClientS3Test {
     }
 
     public void testDownloadFromS3Async(String client, S3AsyncClient s3) throws Exception {
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             GetObjectRequest s3Request = GetObjectRequest.builder()
                     .bucket(BUCKET_NAME)
                     .key(KEY)
@@ -135,7 +145,8 @@ public class AwsCrtClientS3Test {
             byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(300, TimeUnit.SECONDS).asByteArray();
             long end = System.currentTimeMillis();
 
-            System.out.println(client + " Millis: " + (end - start));
+            String mbps = mbps(responseBody.length, (end - start));
+            System.out.println(client + " Mbps: " + mbps);
 //            System.out.println(client + " Size  : " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
@@ -143,7 +154,7 @@ public class AwsCrtClientS3Test {
     }
 
     public void testDownloadFromS3(String client, S3Client s3) throws Exception {
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             GetObjectRequest s3Request = GetObjectRequest.builder()
                     .bucket(BUCKET_NAME)
                     .key(KEY)
@@ -163,8 +174,8 @@ public class AwsCrtClientS3Test {
             }
             long end = System.currentTimeMillis();
 
-
-            System.out.println(client + " Millis: " + (end - start));
+            String mbps = mbps(resp.response().contentLength().intValue(), (end - start));
+            System.out.println(client + " Mbps: " + mbps);
 //            System.out.println(client + " Size  : " + resp.response().contentLength());
         }
     }
