@@ -57,9 +57,11 @@ public class AwsCrtClientS3Test {
     private static Region REGION = Region.US_EAST_1;
 
     private static SdkAsyncHttpClient crtClient;
+    private static SdkAsyncHttpClient crtPlaintextClient;
     private static SdkAsyncHttpClient nettyClient;
 
     private static S3AsyncClient s3CrtClient;
+    private static S3AsyncClient s3CrtPlaintextClient;
     private static S3AsyncClient s3NettyClient;
     private static S3AsyncClient defaultS3AsyncClient;
 
@@ -73,9 +75,14 @@ public class AwsCrtClientS3Test {
     public void setup() {
 
         crtClient = AwsCrtAsyncHttpClient.builder()
-                    .bootstrap(new ClientBootstrap(1))
+                .bootstrap(new ClientBootstrap(2))
+                .socketOptions(new SocketOptions())
+                .tlsContext(new TlsContext())
+                .build();
+
+        crtPlaintextClient = AwsCrtAsyncHttpClient.builder()
+                    .bootstrap(new ClientBootstrap(2))
                     .socketOptions(new SocketOptions())
-                    .tlsContext(new TlsContext())
                     .build();
 
         nettyClient = NettyNioAsyncHttpClient.builder()
@@ -87,6 +94,12 @@ public class AwsCrtClientS3Test {
                   .httpClient(crtClient)
                   .credentialsProvider(AnonymousCredentialsProvider.create()) // File is publicly readable
                   .build();
+
+        s3CrtPlaintextClient = S3AsyncClient.builder()
+                .region(REGION)
+                .httpClient(crtPlaintextClient)
+                .credentialsProvider(AnonymousCredentialsProvider.create()) // File is publicly readable
+                .build();
 
         s3NettyClient = S3AsyncClient.builder()
                 .region(REGION)
@@ -118,18 +131,20 @@ public class AwsCrtClientS3Test {
 
         DecimalFormat df = new DecimalFormat();
         df.setMaximumFractionDigits(2);
+        df.setMinimumFractionDigits(2);
         return df.format(megabitsPerSec);
     }
 
     @Test
     public void testDownloadFromS3Async() throws Exception {
 
-            testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
-            testDownloadFromS3Async("AwsCrtAsyncHttpClient  ", s3CrtClient);
-            testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
+            //testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient (http)  ", s3CrtPlaintextClient);
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient (https) ", s3CrtClient);
+            //testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
             //testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
-            testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
-            testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
+            //testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
+            //testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
 
 
     }
@@ -146,7 +161,7 @@ public class AwsCrtClientS3Test {
             long end = System.currentTimeMillis();
 
             String mbps = mbps(responseBody.length, (end - start));
-            System.out.println(client + " Mbps: " + mbps);
+            System.out.println(client + " Mbps: " + mbps + "   Millis: " + (end - start));
 //            System.out.println(client + " Size  : " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
@@ -175,7 +190,7 @@ public class AwsCrtClientS3Test {
             long end = System.currentTimeMillis();
 
             String mbps = mbps(resp.response().contentLength().intValue(), (end - start));
-            System.out.println(client + " Mbps: " + mbps);
+            System.out.println(client + " Mbps: " + mbps + ", Millis: " + (end - start));
 //            System.out.println(client + " Size  : " + resp.response().contentLength());
         }
     }

@@ -73,7 +73,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext, int windowSize) {
         Validate.notNull(bootstrap, "ClientBootstrap must not be null");
         Validate.notNull(sockOpts, "SocketOptions must not be null");
-        Validate.notNull(tlsContext, "TlsContext must not be null");
+        //Validate.notNull(tlsContext, "TlsContext must not be null");
         Validate.isPositive(windowSize, "windowSize must be > 0");
 
         this.bootstrap = bootstrap;
@@ -82,10 +82,13 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         this.windowSize = windowSize;
     }
 
-    private static URI toUri(SdkHttpRequest sdkRequest) {
+    private static URI toUri(SdkHttpRequest sdkRequest, TlsContext tlsContext) {
         Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
-        return invokeSafely(() -> new URI(sdkRequest.protocol(), null, sdkRequest.host(),
-                sdkRequest.port(), null, null, null));
+        // TODO: Forcing Plaintext: sdkRequest.protocol(), sdkRequest.port()
+        String protocol = (tlsContext == null) ? "http" : sdkRequest.protocol();
+        int port = (tlsContext == null) ? 80 : sdkRequest.port();
+
+        return invokeSafely(() -> new URI(protocol, null, sdkRequest.host(), port, null, null, null));
     }
 
     private static boolean isNullOrEmpty(List<String> list) {
@@ -105,6 +108,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     }
 
     private HttpConnection createConnection(URI uri) {
+
         Validate.notNull(uri, "URI must not be null");
         log.debug(() -> "Creating Connection to: " + uri);
         return invokeSafely(() -> HttpConnection.createConnection(uri, bootstrap, socketOptions, tlsContext,
@@ -191,7 +195,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         Validate.notNull(asyncRequest.requestContentPublisher(), "RequestContentPublisher must not be null");
         Validate.notNull(asyncRequest.responseHandler(), "ResponseHandler must not be null");
 
-        URI uri = toUri(asyncRequest.request());
+        URI uri = toUri(asyncRequest.request(), tlsContext);
         HttpConnection crtConn = getOrCreateConnection(uri);
         HttpRequest crtRequest = toCrtRequest(uri, asyncRequest);
 
