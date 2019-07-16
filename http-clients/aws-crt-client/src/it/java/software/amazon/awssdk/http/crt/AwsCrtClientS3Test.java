@@ -139,8 +139,9 @@ public class AwsCrtClientS3Test {
     public void testDownloadFromS3Async() throws Exception {
 
             //testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
-            testDownloadFromS3Async("AwsCrtAsyncHttpClient (http)  ", s3CrtPlaintextClient);
             testDownloadFromS3Async("AwsCrtAsyncHttpClient (https) ", s3CrtClient);
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient (http)  ", s3CrtPlaintextClient);
+
             //testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
             //testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
             //testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);

@@ -15,8 +15,6 @@
 
 package software.amazon.awssdk.http.crt.internal;
 
-import static software.amazon.awssdk.crt.utils.ByteBufferUtils.deepCopy;
-
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.annotations.SdkInternalApi;
@@ -86,10 +84,13 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
             throw new IllegalStateException("Publisher is null, onResponseHeadersDone() was never called");
         }
 
-        ByteBuffer copy = deepCopy(bodyBytesIn);
-        respBodyPublisher.queueBuffer(copy);
+        // Queue a shallow copy since Native already made a deep copy
+        ByteBuffer shallowCopy = bodyBytesIn.duplicate();
+        respBodyPublisher.queueBuffer(shallowCopy);
         respBodyPublisher.publishToSubscribers();
 
+        // Set the read position to the limit so that Native knows we read all the data.
+        bodyBytesIn.position(bodyBytesIn.limit());
         return 0;
     }
 
