@@ -19,21 +19,25 @@ import static org.apache.commons.codec.digest.DigestUtils.sha256Hex;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.TimeUnit;
-import org.apache.log4j.BasicConfigurator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContext;
 import software.amazon.awssdk.http.SdkHttpConfigurationOption;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.utils.AttributeMap;
 import software.amazon.awssdk.utils.Logger;
 
@@ -56,6 +60,12 @@ public class AwsCrtClientS3Test {
 
     private static S3AsyncClient s3CrtClient;
     private static S3AsyncClient s3NettyClient;
+    private static S3AsyncClient defaultS3AsyncClient;
+
+
+//    private static S3Client defaultS3Client;
+    private static S3Client s3ApacheClient;
+    private static S3Client urlS3Client;
 
 
     @Before
@@ -82,6 +92,17 @@ public class AwsCrtClientS3Test {
                 .httpClient(nettyClient)
                 .credentialsProvider(AnonymousCredentialsProvider.create()) // File is publicly readable
                 .build();
+
+        defaultS3AsyncClient = S3AsyncClient.create();
+//        defaultS3Client = S3Client.create();
+
+        s3ApacheClient = S3Client.builder()
+                            .httpClientBuilder(ApacheHttpClient.builder())
+                            .build();
+
+        urlS3Client = S3Client.builder()
+                .httpClientBuilder(UrlConnectionHttpClient.builder())
+                .build();
     }
 
     @After
@@ -91,13 +112,19 @@ public class AwsCrtClientS3Test {
     }
 
     @Test
-    public void testDownloadFromS3() throws Exception {
-        testDownloadFromS3("Netty Nio Client", s3NettyClient);
-        testDownloadFromS3("AWS Crt Client", s3CrtClient);
+    public void testDownloadFromS3Async() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient  ", s3CrtClient);
+            testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
+            //testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
+            testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
+            testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
+        }
 
     }
 
-    public void testDownloadFromS3(String client, S3AsyncClient s3) throws Exception {
+    public void testDownloadFromS3Async(String client, S3AsyncClient s3) throws Exception {
         GetObjectRequest s3Request = GetObjectRequest.builder()
                 .bucket(BUCKET_NAME)
                 .key(KEY)
@@ -106,12 +133,35 @@ public class AwsCrtClientS3Test {
         long start = System.currentTimeMillis();
         byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(60, TimeUnit.SECONDS).asByteArray();
         long end = System.currentTimeMillis();
-        
+
         System.out.println(client + " Millis: " + (end - start));
         System.out.println(client + " Size: " + responseBody.length);
-        log.info(() -> client + " Millis: " + (end - start));
-        log.info(() -> client + " Size: " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
+    }
+
+    public void testDownloadFromS3(String client, S3Client s3) throws Exception {
+        GetObjectRequest s3Request = GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key(KEY)
+                .build();
+
+        byte[] copy = new byte[129 * 1024 * 1024];
+        int pos = 0;
+
+        long start = System.currentTimeMillis();
+        ResponseInputStream<GetObjectResponse> resp = s3.getObject(s3Request);
+
+        int remaining = resp.response().contentLength().intValue();
+        while (remaining > 0) {
+            int amntRead = resp.read(copy, pos, remaining);
+            pos += amntRead;
+            remaining -= amntRead;
+        }
+        long end = System.currentTimeMillis();
+
+
+        System.out.println(client + " Millis: " + (end - start));
+        System.out.println(client + " Size: " + resp.response().contentLength());
     }
 }
