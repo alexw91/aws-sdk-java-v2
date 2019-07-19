@@ -54,23 +54,32 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
     private static final Logger log = Logger.loggerFor(AwsCrtAsyncHttpClient.class);
     private static final String HOST_HEADER = "Host";
     private static final String CONTENT_LENGTH = "Content-Length";
-    private static final String CLIENT_NAME = "AwsCommonRuntime";
-    private static final int DEFAULT_STREAM_WINDOW_SIZE = 4 * 1024 * 1024; // Queue up to 4 MB of Http Body Bytes
+    private static final String AWS_COMMON_RUNTIME = "AwsCommonRuntime";
+    private static final boolean DEFAULT_ALLOW_INSECURE_CONNECTION = false;
+    private static final int DEFAULT_STREAM_WINDOW_SIZE = 16 * 1024 * 1024; // 16 MB Total Buffer size
+    private static final int DEFAULT_RESPONSE_BODY_UPDATE_SIZE = 4 * 1024 * 1024; // 4 MB Update size from Native
+
+
     private final Map<URI, HttpConnection> connections = new ConcurrentHashMap<>();
     private final ClientBootstrap bootstrap;
     private final SocketOptions socketOptions;
     private final TlsContext tlsContext;
+    private final boolean allowInsecureConnection;
     private final int windowSize;
+    private final int respBodyUpdateSize;
 
     public AwsCrtAsyncHttpClient(DefaultBuilder builder, AttributeMap serviceDefaultsMap) {
-        this(builder.bootstrap, builder.socketOptions, builder.tlsContext, builder.windowSize);
+        this(builder.bootstrap, builder.socketOptions, builder.tlsContext, builder.allowInsecureConnection,
+                builder.windowSize, builder.respBodyUpdateSize);
     }
 
     public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext) {
-        this(bootstrap, sockOpts, tlsContext, DEFAULT_STREAM_WINDOW_SIZE);
+        this(bootstrap, sockOpts, tlsContext, DEFAULT_ALLOW_INSECURE_CONNECTION, DEFAULT_STREAM_WINDOW_SIZE,
+                DEFAULT_RESPONSE_BODY_UPDATE_SIZE);
     }
 
-    public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext, int windowSize) {
+    public AwsCrtAsyncHttpClient(ClientBootstrap bootstrap, SocketOptions sockOpts, TlsContext tlsContext,
+                                 boolean allowInsecureConnection, int windowSize, int respBodyUpdateSize) {
         Validate.notNull(bootstrap, "ClientBootstrap must not be null");
         Validate.notNull(sockOpts, "SocketOptions must not be null");
         //Validate.notNull(tlsContext, "TlsContext must not be null");
@@ -79,12 +88,13 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         this.bootstrap = bootstrap;
         this.socketOptions = sockOpts;
         this.tlsContext = tlsContext;
+        this.allowInsecureConnection = allowInsecureConnection;
         this.windowSize = windowSize;
+        this.respBodyUpdateSize = respBodyUpdateSize;
     }
 
     private static URI toUri(SdkHttpRequest sdkRequest, TlsContext tlsContext) {
         Validate.notNull(sdkRequest, "SdkHttpRequest must not be null");
-        // TODO: Forcing Plaintext: sdkRequest.protocol(), sdkRequest.port()
         String protocol = (tlsContext == null) ? "http" : sdkRequest.protocol();
         int port = (tlsContext == null) ? 80 : sdkRequest.port();
 
@@ -104,7 +114,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
 
     @Override
     public String clientName() {
-        return CLIENT_NAME;
+        return AWS_COMMON_RUNTIME;
     }
 
     private HttpConnection createConnection(URI uri) {
@@ -112,7 +122,7 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         Validate.notNull(uri, "URI must not be null");
         log.debug(() -> "Creating Connection to: " + uri);
         return invokeSafely(() -> HttpConnection.createConnection(uri, bootstrap, socketOptions, tlsContext,
-                                                                    windowSize).get());
+                                                                    windowSize, respBodyUpdateSize).get());
     }
 
     private HttpConnection getOrCreateConnection(URI uri) {
@@ -247,6 +257,15 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
          * @return the builder of the method chaining.
          */
         Builder windowSize(int windowSize);
+
+        /**
+         * The AWS CRT respBodyUpdateSize to use for this HttpClient
+         * @param respBodyUpdateSize
+         * @return
+         */
+        Builder respBodyUpdateSize(int respBodyUpdateSize);
+
+        Builder allowInsecureConnection(boolean allowInsecureConnection);
     }
 
     /**
@@ -259,7 +278,9 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         private ClientBootstrap bootstrap;
         private SocketOptions socketOptions;
         private TlsContext tlsContext;
+        private boolean allowInsecureConnection = false;
         private int windowSize = DEFAULT_STREAM_WINDOW_SIZE;
+        private int respBodyUpdateSize = DEFAULT_RESPONSE_BODY_UPDATE_SIZE;
 
         private DefaultBuilder() {
         }
@@ -301,6 +322,19 @@ public class AwsCrtAsyncHttpClient implements SdkAsyncHttpClient {
         public Builder windowSize(int windowSize) {
             Validate.isPositive(windowSize, "windowSize");
             this.windowSize = windowSize;
+            return this;
+        }
+
+        @Override
+        public Builder respBodyUpdateSize(int respBodyUpdateSize) {
+            Validate.isPositive(respBodyUpdateSize, "respBodyUpdateSize");
+            this.respBodyUpdateSize = respBodyUpdateSize;
+            return this;
+        }
+
+        @Override
+        public Builder allowInsecureConnection(boolean allowInsecureConnection) {
+            this.allowInsecureConnection = allowInsecureConnection;
             return this;
         }
     }

@@ -32,10 +32,20 @@
     <dependencies>
 
         <!--AWS Common Runtime-->
+        <!--
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <version>0.3.11</version>
+        </dependency>
+        -->
+
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <version>0.3.11</version>
+            <scope>system</scope>
+            <systemPath>./aws-crt-0.2.3-SNAPSHOT.jar</systemPath>
         </dependency>
 
         <!--SDK dependencies-->
@@ -174,6 +184,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven.surefire.version}</version>
                 <configuration>
+                    <argLine>-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/aws-sdk</argLine>
                     <properties>
                         <property>
                             <name>junit</name>
@@ -199,6 +210,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
+                    <argLine>-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/aws-sdk</argLine>
                     <archive>
                         <manifestEntries>
                             <Automatic-Module-Name>software.amazon.awssdk.http.crt</Automatic-Module-Name>

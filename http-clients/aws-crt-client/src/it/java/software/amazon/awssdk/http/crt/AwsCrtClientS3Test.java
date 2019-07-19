@@ -26,6 +26,7 @@ import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.crt.CrtResource;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContext;
@@ -75,13 +76,13 @@ public class AwsCrtClientS3Test {
     public void setup() {
 
         crtClient = AwsCrtAsyncHttpClient.builder()
-                .bootstrap(new ClientBootstrap(2))
+                .bootstrap(new ClientBootstrap(1))
                 .socketOptions(new SocketOptions())
                 .tlsContext(new TlsContext())
                 .build();
 
         crtPlaintextClient = AwsCrtAsyncHttpClient.builder()
-                    .bootstrap(new ClientBootstrap(2))
+                    .bootstrap(new ClientBootstrap(1))
                     .socketOptions(new SocketOptions())
                     .build();
 
@@ -135,23 +136,39 @@ public class AwsCrtClientS3Test {
         return df.format(megabitsPerSec);
     }
 
-    @Test
-    public void testDownloadFromS3Async() throws Exception {
-
-            //testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
-            testDownloadFromS3Async("AwsCrtAsyncHttpClient (https) ", s3CrtClient);
-            testDownloadFromS3Async("AwsCrtAsyncHttpClient (http)  ", s3CrtPlaintextClient);
-
-            //testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
-            //testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
-            //testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
-            //testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
-
-
+    public static String formatSize(long v) {
+        if (v < 1024) return v + " B";
+        int z = (63 - Long.numberOfLeadingZeros(v)) / 10;
+        return String.format("%.3f %sB", (double)v / (1L << (z*10)), " KMGTPE".charAt(z));
     }
 
+    private void printMemStats() {
+        System.out.print("CrtCount: " + CrtResource.getAllocatedNativeResourceCount());
+        System.out.print(", MemUsed: " + memUsed());
+        System.out.print(", MemFree: " + formatSize(Runtime.getRuntime().freeMemory()));
+        System.out.println(", MemTotal: " + formatSize(Runtime.getRuntime().maxMemory()));
+    }
+
+    private String memUsed() {
+        return formatSize(Runtime.getRuntime().totalMemory());
+    }
+
+    @Test
+    public void testDownloadFromS3Async() throws Exception {
+        for (int i = 0; i < 1000; i++) {
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient (https) ", s3CrtClient);
+            testDownloadFromS3Async("AwsCrtAsyncHttpClient (http)  ", s3CrtPlaintextClient);
+//            testDownloadFromS3Async("NettyNioAsyncHttpClient", s3NettyClient);
+//            testDownloadFromS3Async("Default S3AsyncClient  ", defaultS3AsyncClient);
+////            testDownloadFromS3(     "Default S3Client       ", defaultS3Client);
+//            testDownloadFromS3("ApacheHttpClient       ", s3ApacheClient);
+//            testDownloadFromS3("UrlConnectionHttpClient", urlS3Client);
+        }
+    }
+
+
     public void testDownloadFromS3Async(String client, S3AsyncClient s3) throws Exception {
-        for (int i = 0; i < 100; i++) {
+        try{
             GetObjectRequest s3Request = GetObjectRequest.builder()
                     .bucket(BUCKET_NAME)
                     .key(KEY)
@@ -162,37 +179,39 @@ public class AwsCrtClientS3Test {
             long end = System.currentTimeMillis();
 
             String mbps = mbps(responseBody.length, (end - start));
-            System.out.println(client + " Mbps: " + mbps + "   Millis: " + (end - start));
-//            System.out.println(client + " Size  : " + responseBody.length);
+            System.out.println(client + " Mbps: " + mbps + ", Millis: " + (end - start) + ", MemUsed: " + memUsed());
+        } catch (Exception e) {
+            System.out.println("Exception Occurred: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+//        System.out.println(client + " Size  : " + responseBody.length);
 
 //        assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
-        }
+
     }
 
     public void testDownloadFromS3(String client, S3Client s3) throws Exception {
-        for (int i = 0; i < 100; i++) {
-            GetObjectRequest s3Request = GetObjectRequest.builder()
-                    .bucket(BUCKET_NAME)
-                    .key(KEY)
-                    .build();
+        GetObjectRequest s3Request = GetObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key(KEY)
+                .build();
 
-            byte[] copy = new byte[129 * 1024 * 1024];
-            int pos = 0;
+        byte[] copy = new byte[129 * 1024 * 1024];
+        int pos = 0;
 
-            long start = System.currentTimeMillis();
-            ResponseInputStream<GetObjectResponse> resp = s3.getObject(s3Request);
+        long start = System.currentTimeMillis();
+        ResponseInputStream<GetObjectResponse> resp = s3.getObject(s3Request);
 
-            int remaining = resp.response().contentLength().intValue();
-            while (remaining > 0) {
-                int amntRead = resp.read(copy, pos, remaining);
-                pos += amntRead;
-                remaining -= amntRead;
-            }
-            long end = System.currentTimeMillis();
-
-            String mbps = mbps(resp.response().contentLength().intValue(), (end - start));
-            System.out.println(client + " Mbps: " + mbps + ", Millis: " + (end - start));
-//            System.out.println(client + " Size  : " + resp.response().contentLength());
+        int remaining = resp.response().contentLength().intValue();
+        while (remaining > 0) {
+            int amntRead = resp.read(copy, pos, remaining);
+            pos += amntRead;
+            remaining -= amntRead;
         }
-    }
+        long end = System.currentTimeMillis();
+
+        String mbps = mbps(resp.response().contentLength().intValue(), (end - start));
+        System.out.println(client + " Mbps: " + mbps + ", Millis: " + (end - start) + ", MemUsed: " + memUsed());
+        }
 }
