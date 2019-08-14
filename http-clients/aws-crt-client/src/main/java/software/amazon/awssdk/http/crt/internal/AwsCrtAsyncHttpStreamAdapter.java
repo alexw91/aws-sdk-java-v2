@@ -18,6 +18,7 @@ package software.amazon.awssdk.http.crt.internal;
 import static software.amazon.awssdk.crt.utils.ByteBufferUtils.deepCopy;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.crt.CRT;
@@ -42,6 +43,7 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
     private final int windowSize;
     private final AwsCrtRequestBodySubscriber requestBodySubscriber;
     private AwsCrtResponseBodyPublisher respBodyPublisher = null;
+    private final UUID uuid;
 
     public AwsCrtAsyncHttpStreamAdapter(CompletableFuture<Void> reqComplete, AsyncExecuteRequest sdkRequest,
                                         int windowSize) {
@@ -49,25 +51,33 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
         Validate.notNull(sdkRequest, "AsyncExecuteRequest Future is null");
         Validate.isPositive(windowSize, "windowSize is <= 0");
 
+        this.uuid = UUID.randomUUID();
         this.sdkRequest = sdkRequest;
         this.reqComplete = reqComplete;
         this.windowSize = windowSize;
         this.requestBodySubscriber = new AwsCrtRequestBodySubscriber(windowSize);
 
         sdkRequest.requestContentPublisher().subscribe(requestBodySubscriber);
+        log.info(() -> "ReqID: " + uuid + ": init()");
+        log.info(() -> "ReqID: " + uuid
+                + "Host: " + sdkRequest.request().host()
+                + ", Path: " + sdkRequest.request().encodedPath());
     }
 
     @Override
     public void onResponseHeaders(HttpStream stream, int responseStatusCode, HttpHeader[] nextHeaders) {
+        log.info(() -> "ReqID: " + uuid + ": onResponseHeaders()");
         respBuilder.statusCode(responseStatusCode);
 
         for (HttpHeader h : nextHeaders) {
+            log.debug(() -> "ReqID: " + uuid + ", Header: { " + h.toString() + " }");
             respBuilder.appendHeader(h.getName(), h.getValue());
         }
     }
 
     @Override
     public void onResponseHeadersDone(HttpStream stream, boolean hasBody) {
+        log.info(() -> "ReqID: " + uuid + ": onResponseHeadersDone()");
         respBuilder.statusCode(stream.getResponseStatusCode());
         sdkRequest.responseHandler().onHeaders(respBuilder.build());
         respBodyPublisher = new AwsCrtResponseBodyPublisher(stream, windowSize);
@@ -82,8 +92,9 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
 
     @Override
     public int onResponseBody(HttpStream stream, ByteBuffer bodyBytesIn) {
+        log.info(() -> "ReqID: " + uuid + ": onResponseBody()");
         if (respBodyPublisher == null) {
-            log.error(() -> "Publisher is null, onResponseHeadersDone() was never called");
+            log.error(() -> "ReqID: " + uuid + "Publisher is null, onResponseHeadersDone() was never called");
             throw new IllegalStateException("Publisher is null, onResponseHeadersDone() was never called");
         }
 
@@ -92,19 +103,24 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
         respBodyPublisher.queueBuffer(deepCopy(bodyBytesIn));
         respBodyPublisher.publishToSubscribers();
 
+        if (bodyBytesIn.remaining() != 0) {
+            log.error(() -> "bodyBytesIn.remaining() = " + bodyBytesIn.remaining());
+        }
+
         return 0;
     }
 
     @Override
     public void onResponseComplete(HttpStream stream, int errorCode) {
+        log.info(() -> "ReqID: " + uuid + ": onResponseComplete()");
         if (errorCode == CRT.AWS_CRT_SUCCESS) {
-            log.debug(() -> "Response Completed Successfully");
+            log.debug(() -> "ReqID: " + uuid + ": Response Completed Successfully");
             respBodyPublisher.setQueueComplete();
             respBodyPublisher.publishToSubscribers();
             reqComplete.complete(null);
         } else {
             HttpException error = new HttpException(errorCode);
-            log.error(() -> "Response Encountered an Error.", error);
+            log.error(() -> "ReqID: " + uuid + ": Response Encountered an Error.", error);
 
             // Invoke Error Callback on SdkAsyncHttpResponseHandler
             sdkRequest.responseHandler().onError(error);
@@ -123,6 +139,7 @@ public class AwsCrtAsyncHttpStreamAdapter implements CrtHttpStreamHandler {
 
     @Override
     public boolean sendRequestBody(HttpStream stream, ByteBuffer bodyBytesOut) {
+        log.info(() -> "ReqID: " + uuid + ": sendRequestBody()");
         return requestBodySubscriber.transferRequestBody(bodyBytesOut);
     }
 }

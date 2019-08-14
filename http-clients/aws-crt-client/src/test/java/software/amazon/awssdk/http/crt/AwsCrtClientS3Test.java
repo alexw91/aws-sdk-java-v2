@@ -20,37 +20,38 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.crt.CrtResource;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 
-public class AwsCrtClientS3IntegrationTest {
+public class AwsCrtClientS3Test {
     /**
      * The name of the bucket created, used, and deleted by these tests.
      */
     private static String BUCKET_NAME = "aws-crt-test-stuff";
-
-    private static String KEY = "http_test_doc.txt";
-
+    private static String TEST_DOC_FILE = "http_test_doc.txt";
+    private static String SMALL_FILE = "random_32_byte.data";
+    private static int NUM_REQUESTS = 1000;
     private static String FILE_SHA256 = "C7FDB5314B9742467B16BD5EA2F8012190B5E2C44A005F7984F89AAB58219534";
-
     private static Region REGION = Region.US_EAST_1;
-
     private static SdkAsyncHttpClient crtClient;
-
     private static S3AsyncClient s3;
 
     List<CrtResource> crtResources = new ArrayList<>();
@@ -63,12 +64,14 @@ public class AwsCrtClientS3IntegrationTest {
     public void setup() {
         Assert.assertEquals("Expected Zero allocated AwsCrtResources", 0, CrtResource.getAllocatedNativeResourceCount());
 
-        ClientBootstrap bootstrap = new ClientBootstrap(1);
+        ClientBootstrap bootstrap = new ClientBootstrap(10);
         SocketOptions socketOptions = new SocketOptions();
-        TlsContext tlsContext = new TlsContext();
+        TlsContextOptions tlsCtxOptions = new TlsContextOptions();
+        TlsContext tlsContext = new TlsContext(tlsCtxOptions);
 
         addResource(bootstrap);
         addResource(socketOptions);
+        addResource(tlsCtxOptions);
         addResource(tlsContext);
 
         crtClient = AwsCrtAsyncHttpClient.builder()
@@ -96,15 +99,34 @@ public class AwsCrtClientS3IntegrationTest {
         Assert.assertEquals("Expected Zero allocated AwsCrtResources", 0, CrtResource.getAllocatedNativeResourceCount());
     }
 
-    @Test
+//    @Test
     public void testDownloadFromS3() throws Exception {
         GetObjectRequest s3Request = GetObjectRequest.builder()
                 .bucket(BUCKET_NAME)
-                .key(KEY)
+                .key(TEST_DOC_FILE)
                 .build();
 
         byte[] responseBody = s3.getObject(s3Request, AsyncResponseTransformer.toBytes()).get(120, TimeUnit.SECONDS).asByteArray();
 
         assertThat(sha256Hex(responseBody).toUpperCase()).isEqualTo(FILE_SHA256);
+    }
+
+//    @Test
+    public void testParallelDownloadFromS3() throws Exception {
+        List<CompletableFuture<ResponseBytes<GetObjectResponse>> > requestFutures = new ArrayList<>();
+
+        for (int i = 0; i < NUM_REQUESTS; i++) {
+            GetObjectRequest s3Request = GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(SMALL_FILE)
+                    .build();
+            CompletableFuture<ResponseBytes<GetObjectResponse>> requestFuture = s3.getObject(s3Request, AsyncResponseTransformer.toBytes());
+            requestFutures.add(requestFuture);
+        }
+
+        for(CompletableFuture<ResponseBytes<GetObjectResponse>>  f: requestFutures) {
+            f.join();
+            Assert.assertEquals(32, f.get().asByteArray().length);
+        }
     }
 }

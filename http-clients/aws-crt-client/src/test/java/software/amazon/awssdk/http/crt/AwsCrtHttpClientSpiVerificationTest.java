@@ -112,7 +112,7 @@ public class AwsCrtHttpClientSpiVerificationTest {
         return randomData;
     }
 
-    @Test
+//    @Test
     public void signalsErrorViaOnErrorAndFuture() throws InterruptedException, ExecutionException, TimeoutException {
         stubFor(any(urlEqualTo("/")).willReturn(aResponse().withFault(Fault.RANDOM_DATA_THEN_CLOSE)));
 
@@ -138,7 +138,7 @@ public class AwsCrtHttpClientSpiVerificationTest {
 
     }
 
-    @Test
+//    @Test
     public void callsOnStreamForEmptyResponseContent() throws Exception {
         stubFor(any(urlEqualTo("/")).willReturn(aResponse().withStatus(204).withHeader("foo", "bar")));
 
@@ -172,7 +172,7 @@ public class AwsCrtHttpClientSpiVerificationTest {
         assertThat(response.get().headers().get("foo").isEmpty()).isFalse();
     }
 
-    @Test
+//    @Test
     public void testGetRequest() throws Exception {
         String path = "/testGetRequest";
         byte[] body = generateRandomBody(TEST_BODY_LEN);
@@ -258,7 +258,7 @@ public class AwsCrtHttpClientSpiVerificationTest {
     }
 
 
-    @Test
+//    @Test
     public void testPutRequest() throws Exception {
         String pathExpect200 = "/testPutRequest/return_200_on_exact_match";
         byte[] expectedBody = generateRandomBody(TEST_BODY_LEN);

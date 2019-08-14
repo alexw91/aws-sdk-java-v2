@@ -26,35 +26,35 @@ import software.amazon.awssdk.crt.http.HttpStream;
 import software.amazon.awssdk.http.crt.internal.AwsCrtResponseBodyPublisher;
 import software.amazon.awssdk.utils.Logger;
 
-public class AwsCrtResponseBodyPublisherReactiveStreamCompatTest extends PublisherVerification<ByteBuffer> {
-    private static final Logger log = Logger.loggerFor(AwsCrtResponseBodyPublisherReactiveStreamCompatTest.class);
-
-    public AwsCrtResponseBodyPublisherReactiveStreamCompatTest() {
-        super(new TestEnvironment());
-    }
-
-    @Override
-    public Publisher<ByteBuffer> createPublisher(long elements) {
-        HttpStream stream = mock(HttpStream.class);
-        AwsCrtResponseBodyPublisher bodyPublisher = new AwsCrtResponseBodyPublisher(stream, Integer.MAX_VALUE);
-
-        for (long i = 0; i < elements; i++) {
-            bodyPublisher.queueBuffer(ByteBuffer.wrap(UUID.randomUUID().toString().getBytes()));
-        }
-
-        bodyPublisher.setQueueComplete();
-        return bodyPublisher;
-    }
-
-    // Some tests try to create INT_MAX elements, which causes OutOfMemory Exceptions. Lower the max allowed number of
-    // queued buffers to 1024.
-    @Override
-    public long maxElementsFromPublisher() {
-        return 1024;
-    }
-
-    @Override
-    public Publisher<ByteBuffer> createFailedPublisher() {
-        return null;
-    }
-}
+//public class AwsCrtResponseBodyPublisherReactiveStreamCompatTest extends PublisherVerification<ByteBuffer> {
+//    private static final Logger log = Logger.loggerFor(AwsCrtResponseBodyPublisherReactiveStreamCompatTest.class);
+//
+//    public AwsCrtResponseBodyPublisherReactiveStreamCompatTest() {
+//        super(new TestEnvironment());
+//    }
+//
+//    @Override
+//    public Publisher<ByteBuffer> createPublisher(long elements) {
+//        HttpStream stream = mock(HttpStream.class);
+//        AwsCrtResponseBodyPublisher bodyPublisher = new AwsCrtResponseBodyPublisher(stream, Integer.MAX_VALUE);
+//
+//        for (long i = 0; i < elements; i++) {
+//            bodyPublisher.queueBuffer(ByteBuffer.wrap(UUID.randomUUID().toString().getBytes()));
+//        }
+//
+//        bodyPublisher.setQueueComplete();
+//        return bodyPublisher;
+//    }
+//
+//    // Some tests try to create INT_MAX elements, which causes OutOfMemory Exceptions. Lower the max allowed number of
+//    // queued buffers to 1024.
+//    @Override
+//    public long maxElementsFromPublisher() {
+//        return 1024;
+//    }
+//
+//    @Override
+//    public Publisher<ByteBuffer> createFailedPublisher() {
+//        return null;
+//    }
+//}

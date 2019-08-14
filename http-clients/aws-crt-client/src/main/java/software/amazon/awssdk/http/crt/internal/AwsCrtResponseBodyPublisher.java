@@ -162,8 +162,10 @@ public class AwsCrtResponseBodyPublisher implements Publisher<ByteBuffer> {
         Throwable throwable = error.get();
 
         if (throwable != null) {
+            log.error(() -> "Error before ResponseBodyPublisher could complete: " + throwable.getMessage());
             s.onError(throwable);
         } else {
+            log.debug(() -> "ResponseBodyPublisher Completed Successfully");
             s.onComplete();
         }
     }
