@@ -48,7 +48,7 @@ public class AwsCrtClientS3Test {
     private static String BUCKET_NAME = "aws-crt-test-stuff";
     private static String TEST_DOC_FILE = "http_test_doc.txt";
     private static String SMALL_FILE = "random_32_byte.data";
-    private static int NUM_REQUESTS = 1000;
+    private static int NUM_REQUESTS = 200;
     private static String FILE_SHA256 = "C7FDB5314B9742467B16BD5EA2F8012190B5E2C44A005F7984F89AAB58219534";
     private static Region REGION = Region.US_EAST_1;
     private static SdkAsyncHttpClient crtClient;
@@ -64,7 +64,7 @@ public class AwsCrtClientS3Test {
     public void setup() {
         Assert.assertEquals("Expected Zero allocated AwsCrtResources", 0, CrtResource.getAllocatedNativeResourceCount());
 
-        ClientBootstrap bootstrap = new ClientBootstrap(10);
+        ClientBootstrap bootstrap = new ClientBootstrap(1);
         SocketOptions socketOptions = new SocketOptions();
         TlsContextOptions tlsCtxOptions = new TlsContextOptions();
         TlsContext tlsContext = new TlsContext(tlsCtxOptions);

@@ -5,6 +5,7 @@ import static software.amazon.awssdk.testutils.service.AwsTestBase.CREDENTIALS_P
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -29,12 +30,16 @@ import software.amazon.awssdk.services.kms.model.DescribeKeyRequest;
 import software.amazon.awssdk.services.kms.model.DescribeKeyResponse;
 import software.amazon.awssdk.services.kms.model.EncryptRequest;
 import software.amazon.awssdk.services.kms.model.EncryptResponse;
+import software.amazon.awssdk.services.kms.model.GenerateDataKeyRequest;
+import software.amazon.awssdk.services.kms.model.GenerateDataKeyResponse;
 
 
 public class AwsCrtClientKmsTest {
-    private static String KEY_ALIAS = "alias/aws-sdk-java-v2-integ-test";
-    private static Region REGION = Region.US_EAST_1;
-    private static List<SdkAsyncHttpClient> awsCrtHttpClients = new ArrayList<>();
+    private final static String KEY_ALIAS = "alias/aws-sdk-java-v2-integ-test";
+    private final static Region REGION = Region.US_EAST_1;
+    private final static List<SdkAsyncHttpClient> awsCrtHttpClients = new ArrayList<>();
+    private final static int DEFAULT_KEY_SIZE = 32;
+    private static int NUM_REQUESTS = 250;
 
     List<CrtResource> crtResources = new ArrayList<>();
 
@@ -78,8 +83,19 @@ public class AwsCrtClientKmsTest {
 
     @After
     public void tearDown() {
+        for (SdkAsyncHttpClient awsCrtHttpClient: awsCrtHttpClients) {
+            awsCrtHttpClient.close();
+        }
+
         closeResources();
         Assert.assertEquals("Expected Zero allocated AwsCrtResources", 0, CrtResource.getAllocatedNativeResourceCount());
+    }
+
+    private String getKeyId(KmsAsyncClient kms, String keyAlias) throws Exception {
+        DescribeKeyRequest req = DescribeKeyRequest.builder().keyId(keyAlias).build();
+        DescribeKeyResponse resp = kms.describeKey(req).get();
+        Assert.assertEquals(200, resp.sdkHttpResponse().statusCode());
+        return resp.keyMetadata().keyId();
     }
 
     private boolean doesKeyExist(KmsAsyncClient kms, String keyAlias) {
@@ -128,6 +144,15 @@ public class AwsCrtClientKmsTest {
         return resp.plaintext().asUtf8String();
     }
 
+    private CompletableFuture<GenerateDataKeyResponse> generateDataKey(KmsAsyncClient kms, String keyId) throws Exception {
+        GenerateDataKeyRequest dataKeyRequest = GenerateDataKeyRequest.builder()
+                                                    .keyId(keyId)
+                                                    .numberOfBytes(DEFAULT_KEY_SIZE)
+                                                    .build();
+        return  kms.generateDataKey(dataKeyRequest);
+
+    }
+
     private void testEncryptDecryptWithKms(KmsAsyncClient kms) throws Exception {
         createKeyIfNotExists(kms, KEY_ALIAS);
         Assert.assertTrue(doesKeyExist(kms, KEY_ALIAS));
@@ -152,7 +177,46 @@ public class AwsCrtClientKmsTest {
             testEncryptDecryptWithKms(kms);
 
             kms.close();
-            awsCrtHttpClient.close();
+
         }
     }
+
+
+    private void stress(KmsAsyncClient kms, String keyId) throws Exception {
+        List<CompletableFuture> futures = new ArrayList<>();
+
+        for (int i = 0; i < NUM_REQUESTS; i++) {
+            CompletableFuture<GenerateDataKeyResponse> f = generateDataKey(kms, keyId);
+
+            f.whenComplete((resp, throwable) -> {
+                Assert.assertEquals(200, resp.sdkHttpResponse().statusCode());
+                Assert.assertEquals(DEFAULT_KEY_SIZE, resp.plaintext().asByteArray().length);
+            });
+        }
+
+
+        for(CompletableFuture f: futures) {
+            f.join();
+        }
+    }
+
+
+    @Test
+    public void perfTest() throws Exception {
+        for (SdkAsyncHttpClient awsCrtHttpClient: awsCrtHttpClients) {
+
+            KmsAsyncClient kms = KmsAsyncClient.builder()
+                    .region(REGION)
+                    .httpClient(awsCrtHttpClient)
+                    .credentialsProvider(CREDENTIALS_PROVIDER_CHAIN)
+                    .build();
+            createKeyIfNotExists(kms, KEY_ALIAS);
+            String keyId = getKeyId(kms, KEY_ALIAS);
+
+            stress(kms, keyId);
+
+            kms.close();
+        }
+    }
+
 }

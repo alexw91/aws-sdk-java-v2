@@ -67,7 +67,7 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
 
 
-public class PerfTest {
+public class S3PerfTest {
     private static final String DDB_TABLE = "berks";
     private static Region REGION = Region.US_EAST_1;
     private static final String S3_BUCKET = "aws-crt-test-stuff";
@@ -129,6 +129,9 @@ public class PerfTest {
                     .httpClientBuilder(UrlConnectionHttpClient.builder())
                     .build();
 
+
+
+
     @BeforeClass
     public static void setup() {
         BasicConfigurator.configure();
@@ -184,7 +187,7 @@ public class PerfTest {
     }
 
 
-    @Test
+//    @Test
     public void comparePerformance() throws Exception {
         System.out.println("Parameters: (ConcurrentRequests=" + CONCURRENT_REQUESTS + ", RunDuration=" + RUN_DURATION.getSeconds() + "s)");
 
