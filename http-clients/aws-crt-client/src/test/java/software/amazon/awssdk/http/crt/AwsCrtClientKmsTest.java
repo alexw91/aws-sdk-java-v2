@@ -28,7 +28,7 @@ import software.amazon.awssdk.services.kms.model.EncryptRequest;
 import software.amazon.awssdk.services.kms.model.EncryptResponse;
 
 
-public class AwsCrtClientKmsIntegrationTest {
+public class AwsCrtClientKmsTest {
     private static String KEY_ALIAS = "alias/aws-sdk-java-v2-integ-test";
     private static Region REGION = Region.US_EAST_1;
     private static List<SdkAsyncHttpClient> awsCrtHttpClients = new ArrayList<>();

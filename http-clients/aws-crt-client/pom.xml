@@ -34,6 +34,8 @@
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <version>0.3.17</version>
+            <scope>system</scope>
+            <systemPath>/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-crt-java/target/aws-crt-0.2.3-SNAPSHOT.jar</systemPath>
         </dependency>
 
         <!--SDK dependencies-->

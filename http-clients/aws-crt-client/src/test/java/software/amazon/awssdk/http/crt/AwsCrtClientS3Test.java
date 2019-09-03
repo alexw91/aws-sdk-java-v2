@@ -37,7 +37,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 
-public class AwsCrtClientS3IntegrationTest {
+public class AwsCrtClientS3Test {
     /**
      * The name of the bucket created, used, and deleted by these tests.
      */
