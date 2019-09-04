@@ -83,11 +83,9 @@ public class AwsCrtCombinatorialConfigStressTest {
         if (!succeeded) {
             for(Exception e: failures) {
                 System.err.println(e.getMessage());
+                e.printStackTrace();
             }
-            failures.get(0).printStackTrace();
         }
-
-
 
         return succeeded;
     }
@@ -120,7 +118,7 @@ public class AwsCrtCombinatorialConfigStressTest {
 
     @DataPoints("NumRequests")
     public static int[] requestValues(){
-        return new int[]{1, 25, 250};
+        return new int[]{1, 100, 250};
     }
 
     @DataPoints("ParallelClients")
@@ -140,7 +138,6 @@ public class AwsCrtCombinatorialConfigStressTest {
                                      @FromDataPoints("ParallelClients") int numberOfParallelClients,
                                      @FromDataPoints("SharedClient") boolean useSharedClient) throws Exception {
 
-        try {
             if (CrtResource.getAllocatedNativeResourceCount() > 0) {
                 System.err.println("Leaked Resources: " + String.join(", ", CrtResource.getAllocatedNativeResources()));
             }
@@ -166,6 +163,7 @@ public class AwsCrtCombinatorialConfigStressTest {
                     .region(REGION)
                     .httpClient(awsCrtHttpClient)
                     .credentialsProvider(CREDENTIALS_PROVIDER_CHAIN)
+
                     .build();
 
             final AtomicBoolean failed = new AtomicBoolean(false);
@@ -193,7 +191,7 @@ public class AwsCrtCombinatorialConfigStressTest {
 
             sharedAsyncKMSClient.close();
             awsCrtHttpClient.close();
-            Assert.assertFalse(failed.get());
+            Assert.assertFalse("Failed too many Requests", failed.get());
 
             if (CrtResource.getAllocatedNativeResourceCount() > 0) {
                 System.err.println("Leaked Resources: " + String.join(", ", CrtResource.getAllocatedNativeResources()));
@@ -205,9 +203,5 @@ public class AwsCrtCombinatorialConfigStressTest {
             String timeElapsed = String.format("%.2f sec", numSeconds);
 
             System.out.println("Passed: " + testName + ", Time " + timeElapsed);
-        } catch (Exception e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-        }
     }
 }
