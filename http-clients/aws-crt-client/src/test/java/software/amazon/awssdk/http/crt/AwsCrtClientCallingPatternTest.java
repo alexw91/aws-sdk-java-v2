@@ -34,6 +34,7 @@ import org.junit.runner.RunWith;
 import software.amazon.awssdk.crt.CrtResource;
 import software.amazon.awssdk.http.SdkHttpConfigurationOption;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.crt.AwsCrtAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsAsyncClient;
 import software.amazon.awssdk.services.kms.model.GenerateRandomRequest;
@@ -45,7 +46,7 @@ import software.amazon.awssdk.utils.AttributeMap;
  * Test many possible different calling patterns that users might do, and make sure everything works.
  */
 @RunWith(Theories.class)
-public class AwsCrtClientCallingPatternIntegrationTest {
+public class AwsCrtClientCallingPatternTest {
     private final static String KEY_ALIAS = "alias/aws-sdk-java-v2-integ-test";
     private final static Region REGION = Region.US_EAST_1;
     private final static int DEFAULT_KEY_SIZE = 32;
