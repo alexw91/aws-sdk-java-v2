@@ -2,34 +2,43 @@ package software.amazon.awssdk.http.crt;
 
 import static software.amazon.awssdk.testutils.service.AwsTestBase.CREDENTIALS_PROVIDER_CHAIN;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.crt.CrtResource;
 import software.amazon.awssdk.crt.io.TlsCipherPreference;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.crt.internal.AwsCrtAsyncHttpStreamAdapter;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsAsyncClient;
-import software.amazon.awssdk.services.kms.model.CreateAliasRequest;
-import software.amazon.awssdk.services.kms.model.CreateAliasResponse;
-import software.amazon.awssdk.services.kms.model.CreateKeyRequest;
-import software.amazon.awssdk.services.kms.model.CreateKeyResponse;
-import software.amazon.awssdk.services.kms.model.DecryptRequest;
-import software.amazon.awssdk.services.kms.model.DecryptResponse;
-import software.amazon.awssdk.services.kms.model.DescribeKeyRequest;
-import software.amazon.awssdk.services.kms.model.DescribeKeyResponse;
-import software.amazon.awssdk.services.kms.model.EncryptRequest;
-import software.amazon.awssdk.services.kms.model.EncryptResponse;
+import software.amazon.awssdk.services.kms.model.*;
+import software.amazon.awssdk.utils.Logger;
 
 
-public class AwsCrtClientKmsIntegrationTest {
+public class AwsCrtClientKmsTest {
+    private static final Logger log = Logger.loggerFor(AwsCrtClientKmsTest.class);
     private static String KEY_ALIAS = "alias/aws-sdk-java-v2-integ-test";
+    private static final int NUM_RANDOM_BYTES = 32;
     private static Region REGION = Region.US_EAST_1;
     private static List<SdkAsyncHttpClient> awsCrtHttpClients = new ArrayList<>();
 
@@ -43,9 +52,9 @@ public class AwsCrtClientKmsIntegrationTest {
                 continue;
             }
 
-
             SdkAsyncHttpClient awsCrtHttpClient = AwsCrtAsyncHttpClient.builder()
                     .eventLoopSize(1)
+                    .tlsCipherPreference(pref)
                     .build();
 
             awsCrtHttpClients.add(awsCrtHttpClient);
@@ -104,6 +113,14 @@ public class AwsCrtClientKmsIntegrationTest {
         return resp.plaintext().asUtf8String();
     }
 
+    public Consumer<AwsRequestOverrideConfiguration.Builder> requestCloseConnection() {
+        /* See https://tools.ietf.org/html/rfc2616#section-14.10 which specifies the "close" header to signal the
+         * connection will be closed after the server responds. This is more efficient that deleting the entire SDK and
+         * HTTP client for every transaction.
+         */
+        return b -> b.putHeader("Connection", "close");
+    }
+
     private void testEncryptDecryptWithKms(KmsAsyncClient kms) throws Exception {
         createKeyIfNotExists(kms, KEY_ALIAS);
         Assert.assertTrue(doesKeyExist(kms, KEY_ALIAS));
@@ -116,7 +133,100 @@ public class AwsCrtClientKmsIntegrationTest {
         Assert.assertEquals(plainText, secret);
     }
 
+    private AtomicLong numCompletedTransactions = new AtomicLong(0);
+    private AtomicLong numFailed = new AtomicLong(0);
+
+    private ConcurrentLinkedQueue<Exception> queue = new ConcurrentLinkedQueue<>();
+
+
+    private void genDataKey(KmsAsyncClient kms) {
+        try {
+            GenerateDataKeyRequest dataKeyRequest = GenerateDataKeyRequest.builder()
+                    .keyId(KEY_ALIAS)
+                    .numberOfBytes(NUM_RANDOM_BYTES)
+                    .overrideConfiguration(requestCloseConnection())
+                    .build();
+            kms.generateDataKey(dataKeyRequest).get(10, TimeUnit.SECONDS);
+            numCompletedTransactions.addAndGet(1);
+        } catch (Exception e) {
+            queue.add(e);
+//            log.error(() -> e.getMessage());
+//            e.printStackTrace();
+            numFailed.addAndGet(1);
+        }
+    }
+
+    private static String getCurrentTime() {
+        return ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT);
+    }
+
+    private static void getLinuxMemInfo() throws Exception {
+        final String meminfoPath = "/proc/meminfo";
+
+        FileReader reader = new FileReader(new File(meminfoPath));
+        BufferedReader meminfo = new BufferedReader(reader);
+
+        String line = null;
+        while ((line = meminfo.readLine()) != null) {
+            if (line.contains("Mem")) {
+                System.out.println(line);
+            }
+        }
+    }
+
     @Test
+    public void testGenerateDataKey() throws Exception {
+        SdkAsyncHttpClient awsCrtHttpClient = AwsCrtAsyncHttpClient.builder()
+                .eventLoopSize(4)
+                .tlsCipherPreference(TlsCipherPreference.TLS_CIPHER_KMS_PQ_TLSv1_0_2019_06)
+                .build();
+
+        KmsAsyncClient kms = KmsAsyncClient.builder()
+                .region(REGION)
+                .httpClient(awsCrtHttpClient)
+                .credentialsProvider(CREDENTIALS_PROVIDER_CHAIN)
+                .build();
+
+        ExecutorService threadPool = Executors.newFixedThreadPool(32);
+
+        int numTotalTransactions = 10000;
+        int requestIntervalMillis = 100;
+
+        int logIntervalMillis= 5000;
+        long lastPrintTime = 0;
+
+        while (true) {
+
+            if (numCompletedTransactions.get() == numTotalTransactions) {
+                break;
+            }
+
+//            System.out.println("Scheduling genDataKey()");
+//            threadPool.execute(() -> { try { genDataKey(kms); } catch (Exception e) { /*Do Nothing*/ } });
+            genDataKey(kms);
+            Thread.sleep(requestIntervalMillis);
+
+            long timeSinceLastLog = (System.currentTimeMillis() - lastPrintTime);
+
+            if (timeSinceLastLog > (logIntervalMillis)) {
+                lastPrintTime = System.currentTimeMillis();
+                System.out.println("\nCurr Time: " + getCurrentTime());
+                System.out.println("numCompletedTransactions: " + numCompletedTransactions.get());
+                System.out.println("numFailedTransactions: " + numFailed.get());
+                getLinuxMemInfo();
+            }
+
+            if (queue.size() > 0) {
+                Exception e = queue.poll();
+
+                System.out.println("\nException: " + e.getMessage());
+//                e.printStackTrace();
+            }
+        }
+
+    }
+
+//    @Test
     public void testEncryptDecryptWithKms() throws Exception {
         for (SdkAsyncHttpClient awsCrtHttpClient: awsCrtHttpClients) {
             KmsAsyncClient kms = KmsAsyncClient.builder()
