@@ -30,10 +30,19 @@
 
     <dependencies>
         <!--AWS Common Runtime-->
+<!--        <dependency>-->
+<!--            <groupId>software.amazon.awssdk.crt</groupId>-->
+<!--            <artifactId>aws-crt</artifactId>-->
+<!--            <version>0.3.26</version>-->
+<!--        </dependency>-->
+
+
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <version>0.3.26</version>
+            <scope>system</scope>
+            <systemPath>/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-crt-java/target/aws-crt-1.0.0-SNAPSHOT.jar</systemPath>
         </dependency>
 
         <!--SDK dependencies-->
@@ -152,6 +161,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven.surefire.version}</version>
                 <configuration>
+                    <argLine>-Xcheck:jni</argLine>
+                    <argLine>-Daws.crt.memory.tracing=2</argLine>
                     <properties>
                         <property>
                             <name>junit</name>

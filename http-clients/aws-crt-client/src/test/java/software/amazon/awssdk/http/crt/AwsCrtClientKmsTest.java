@@ -5,6 +5,7 @@ import static software.amazon.awssdk.testutils.service.AwsTestBase.CREDENTIALS_P
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.lang.management.ManagementFactory;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,7 +16,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.junit.After;
@@ -24,7 +27,9 @@ import org.junit.Before;
 import org.junit.Test;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.crt.CRT;
 import software.amazon.awssdk.crt.CrtResource;
+import software.amazon.awssdk.crt.Log;
 import software.amazon.awssdk.crt.io.TlsCipherPreference;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
@@ -176,8 +181,10 @@ public class AwsCrtClientKmsTest {
 
     @Test
     public void testGenerateDataKey() throws Exception {
+        Log.initLoggingToFile(Log.LogLevel.Trace, "/home/ANT.AMAZON.COM/aweibel/workspace/github/aws-sdk-java-v2/crt-logs-" + getCurrentTime() + ".txt");
+
         SdkAsyncHttpClient awsCrtHttpClient = AwsCrtAsyncHttpClient.builder()
-                .eventLoopSize(4)
+                .eventLoopSize(1)
                 .tlsCipherPreference(TlsCipherPreference.TLS_CIPHER_KMS_PQ_TLSv1_0_2019_06)
                 .build();
 
@@ -187,10 +194,12 @@ public class AwsCrtClientKmsTest {
                 .credentialsProvider(CREDENTIALS_PROVIDER_CHAIN)
                 .build();
 
+        createKeyIfNotExists(kms, KEY_ALIAS);
+
         ExecutorService threadPool = Executors.newFixedThreadPool(32);
 
-        int numTotalTransactions = 10000;
-        int requestIntervalMillis = 100;
+        int numTotalTransactions = 100;
+        int requestIntervalMillis = 50;
 
         int logIntervalMillis= 5000;
         long lastPrintTime = 0;
@@ -202,15 +211,22 @@ public class AwsCrtClientKmsTest {
             }
 
 //            System.out.println("Scheduling genDataKey()");
-//            threadPool.execute(() -> { try { genDataKey(kms); } catch (Exception e) { /*Do Nothing*/ } });
+//            for(int i = 0; i < 10; i++) {
+//                threadPool.execute(() -> { try { genDataKey(kms); } catch (Exception e) { /*Do Nothing*/ } });
+//            }
+//
+
             genDataKey(kms);
             Thread.sleep(requestIntervalMillis);
+
 
             long timeSinceLastLog = (System.currentTimeMillis() - lastPrintTime);
 
             if (timeSinceLastLog > (logIntervalMillis)) {
                 lastPrintTime = System.currentTimeMillis();
                 System.out.println("\nCurr Time: " + getCurrentTime());
+                System.out.println("PID:" + ManagementFactory.getRuntimeMXBean().getName());
+                System.out.println("CRT.nativeMemory: " + CRT.nativeMemory());
                 System.out.println("numCompletedTransactions: " + numCompletedTransactions.get());
                 System.out.println("numFailedTransactions: " + numFailed.get());
                 getLinuxMemInfo();
@@ -220,10 +236,20 @@ public class AwsCrtClientKmsTest {
                 Exception e = queue.poll();
 
                 System.out.println("\nException: " + e.getMessage());
-//                e.printStackTrace();
+                e.printStackTrace();
             }
         }
 
+        kms.close();
+        awsCrtHttpClient.close();
+
+        AtomicBoolean zeroCrtResources = new AtomicBoolean(false);
+        AtomicReference<Exception> awaitException = new AtomicReference<>(null);
+        CrtResource.waitForNoResources();
+
+        System.out.println("CRT.nativeMemory: " + CRT.nativeMemory());
+
+        Thread.sleep(1000 * 1000);
     }
 
 //    @Test
